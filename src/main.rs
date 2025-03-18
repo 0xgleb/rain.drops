@@ -20,107 +20,8 @@ struct Env {
 }
 
 sol! {
-    /// Used in struct SignedContextV1.
-    ///
-    /// The chain of imports leads to SignedContextV1 that is deinfed in IInterpreterCallerV2.sol
-    /// See the source here:
-    /// https://github.com/rainlanguage/rain.interpreter.interface/blob/09352384381d1e3ab1118576f5656c911252f0d6/src/interface/deprecated/IInterpreterCallerV2.sol#L62
-    #[derive(Debug)]
-    struct SignedContextV1 {
-        // The ordering of these fields is important and used in assembly offset
-        // calculations and hashing.
-        address signer;
-        bytes32[] context;
-        bytes signature;
-    }
-
-    /// Used in event TakeOrderV2.
-    ///
-    /// Definition copied from
-    /// https://github.com/rainlanguage/rain.orderbook.interface/blob/79a9086c618387f61c42d35ff2adb351c47b9547/src/interface/IOrderBookV4.sol#L56
-    #[derive(Debug)]
-    struct TakeOrderConfigV3 {
-        OrderV3 order;
-        uint256 inputIOIndex;
-        uint256 outputIOIndex;
-        SignedContextV1[] signedContext;
-    }
-
-    type IInterpreterV3 is address;
-    type IInterpreterStoreV2 is address;
-
-    /// Used in struct OrderV3.
-    ///
-    /// Definition copied from
-    /// https://github.com/rainlanguage/rain.interpreter.interface/blob/0247f7e27df7097bf0d6ea25b086925b4c2747d2/src/interface/IInterpreterCallerV3.sol#L20
-    #[derive(Debug)]
-    struct EvaluableV3 {
-        IInterpreterV3 interpreter;
-        IInterpreterStoreV2 store;
-        bytes bytecode;
-    }
-
-    /// Used in struct OrderV3.
-    ///
-    /// Definition (following the chain of imports leading to V2) was copied from
-    /// https://github.com/rainlanguage/rain.orderbook.interface/blob/79a9086c618387f61c42d35ff2adb351c47b9547/src/interface/deprecated/v2/IOrderBookV2.sol#L49
-    #[derive(Debug)]
-    struct IO {
-        address token;
-        uint8 decimals;
-        uint256 vaultId;
-    }
-
-    /// Used in event ClearV2.
-    ///
-    /// Definition copied from
-    /// https://github.com/rainlanguage/rain.orderbook.interface/blob/79a9086c618387f61c42d35ff2adb351c47b9547/src/interface/IOrderBookV4.sol#L79
-    #[derive(Debug)]
-    struct OrderV3 {
-        address owner;
-        EvaluableV3 evaluable;
-        IO[] validInputs;
-        IO[] validOutputs;
-        bytes32 nonce;
-    }
-
-    /// Used in event ClearV2.
-    ///
-    /// Definition copied from
-    /// https://github.com/rainlanguage/rain.orderbook.interface/blob/79a9086c618387f61c42d35ff2adb351c47b9547/src/interface/deprecated/v2/IOrderBookV2.sol#L143
-    #[derive(Debug)]
-    struct ClearConfig {
-        uint256 aliceInputIOIndex;
-        uint256 aliceOutputIOIndex;
-        uint256 bobInputIOIndex;
-        uint256 bobOutputIOIndex;
-        uint256 aliceBountyVaultId;
-        uint256 bobBountyVaultId;
-    }
-
     #[sol(rpc)]
-    interface IOrderBookV4 {
-        /// Some order has been taken by `msg.sender`. This is the same as them
-        /// placing inverse orders then immediately clearing them all, but costs less
-        /// gas and is more convenient and reliable. Analogous to a market buy
-        /// against the specified orders. Each order that is matched within a the
-        /// `takeOrders` loop emits its own individual event.
-        /// @param sender `msg.sender` taking the orders.
-        /// @param config All config defining the orders to attempt to take.
-        /// @param input The input amount from the perspective of sender.
-        /// @param output The output amount from the perspective of sender.
-        #[derive(Debug)]
-        event TakeOrderV2(address sender, TakeOrderConfigV3 config, uint256 input, uint256 output);
-
-        /// Emitted before two orders clear. Covers both orders and includes all the
-        /// state before anything is calculated.
-        /// @param sender `msg.sender` clearing both orders.
-        /// @param alice One of the orders.
-        /// @param bob The other order.
-        /// @param clearConfig Additional config required to process the clearance.
-        #[derive(Debug)]
-        event ClearV2(address sender, OrderV3 alice, OrderV3 bob, ClearConfig clearConfig);
-    }
+    IOrderBookV4, "./abi/orderbookv4.json"
 }
 
 #[tokio::main]
@@ -185,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
 
         info!(
             "Blocks {start_block} through {end_block} emitted \
-            {clearv2_log_count} ClearV2 and {takeorderv2_log_count} TakeOrderV2 events"
+            {clearv2_log_count:>02} ClearV2 and {takeorderv2_log_count:>02} TakeOrderV2 events"
         );
 
         //     let swaps = logs

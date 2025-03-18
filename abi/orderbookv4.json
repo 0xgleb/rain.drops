@@ -1,0 +1,2211 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "result",
+        "type": "bytes32"
+      }
+    ],
+    "name": "FlashLenderCallbackFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "i",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "minimumInput",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "input",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinimumInput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoOrders",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "NotOrderOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "unmeta",
+        "type": "bytes"
+      }
+    ],
+    "name": "NotRainMetaV1",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OrderNoHandleIO",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OrderNoInputs",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OrderNoOutputs",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OrderNoSources",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SameOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenDecimalsMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenSelfTrade",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "outputs",
+        "type": "uint256"
+      }
+    ],
+    "name": "UnsupportedCalculateOutputs",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ZeroDepositAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroMaximumInput",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ZeroWithdrawTargetAmount",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct OrderV3",
+        "name": "order",
+        "type": "tuple"
+      }
+    ],
+    "name": "AddOrderV2",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "aliceOutput",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobOutput",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "aliceInput",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobInput",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ClearStateChange",
+        "name": "clearStateChange",
+        "type": "tuple"
+      }
+    ],
+    "name": "AfterClear",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct OrderV3",
+        "name": "alice",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct OrderV3",
+        "name": "bob",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "aliceInputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "aliceOutputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobInputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobOutputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "aliceBountyVaultId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobBountyVaultId",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ClearConfig",
+        "name": "clearConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "ClearV2",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[][]",
+        "name": "context",
+        "type": "uint256[][]"
+      }
+    ],
+    "name": "Context",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "Deposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "subject",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "meta",
+        "type": "bytes"
+      }
+    ],
+    "name": "MetaV1_2",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "OrderExceedsMaxRatio",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "OrderNotFound",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "OrderZeroAmount",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct OrderV3",
+        "name": "order",
+        "type": "tuple"
+      }
+    ],
+    "name": "RemoveOrderV2",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "contract IInterpreterV3",
+                    "name": "interpreter",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "contract IInterpreterStoreV2",
+                    "name": "store",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "bytes",
+                    "name": "bytecode",
+                    "type": "bytes"
+                  }
+                ],
+                "internalType": "struct EvaluableV3",
+                "name": "evaluable",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "decimals",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "vaultId",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct IO[]",
+                "name": "validInputs",
+                "type": "tuple[]"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "decimals",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "vaultId",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct IO[]",
+                "name": "validOutputs",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct OrderV3",
+            "name": "order",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "outputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct TakeOrderConfigV3",
+        "name": "config",
+        "type": "tuple"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "input",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "output",
+        "type": "uint256"
+      }
+    ],
+    "name": "TakeOrderV2",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "targetAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "Withdraw",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "secret",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "meta",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct OrderConfigV3",
+        "name": "orderConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct TaskV1[]",
+        "name": "post",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "addOrder2",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct OrderV3",
+        "name": "aliceOrder",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct OrderV3",
+        "name": "bobOrder",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "aliceInputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "aliceOutputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobInputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobOutputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "aliceBountyVaultId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "bobBountyVaultId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ClearConfig",
+        "name": "clearConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "context",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct SignedContextV1[]",
+        "name": "aliceSignedContext",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "context",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct SignedContextV1[]",
+        "name": "bobSignedContext",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "clear2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "depositAmount",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct TaskV1[]",
+        "name": "post",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "deposit2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct TaskV1[]",
+        "name": "post",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "entask",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "flashFee",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC3156FlashBorrower",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "flashLoan",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "maxFlashLoan",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "data",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "multicall",
+    "outputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "results",
+        "type": "bytes[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "orderHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "orderExists",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "contract IInterpreterV3",
+                    "name": "interpreter",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "contract IInterpreterStoreV2",
+                    "name": "store",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "bytes",
+                    "name": "bytecode",
+                    "type": "bytes"
+                  }
+                ],
+                "internalType": "struct EvaluableV3",
+                "name": "evaluable",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "decimals",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "vaultId",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct IO[]",
+                "name": "validInputs",
+                "type": "tuple[]"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint8",
+                    "name": "decimals",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "vaultId",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct IO[]",
+                "name": "validOutputs",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct OrderV3",
+            "name": "order",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "outputIOIndex",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct Quote",
+        "name": "quoteConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "quote",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validInputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint8",
+                "name": "decimals",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "vaultId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct IO[]",
+            "name": "validOutputs",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct OrderV3",
+        "name": "order",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct TaskV1[]",
+        "name": "post",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "removeOrder2",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "stateChanged",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes4",
+        "name": "interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "minimumInput",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maximumInput",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maximumIORatio",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "owner",
+                    "type": "address"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "contract IInterpreterV3",
+                        "name": "interpreter",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "contract IInterpreterStoreV2",
+                        "name": "store",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "bytes",
+                        "name": "bytecode",
+                        "type": "bytes"
+                      }
+                    ],
+                    "internalType": "struct EvaluableV3",
+                    "name": "evaluable",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "token",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint8",
+                        "name": "decimals",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "vaultId",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct IO[]",
+                    "name": "validInputs",
+                    "type": "tuple[]"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "token",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint8",
+                        "name": "decimals",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "vaultId",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct IO[]",
+                    "name": "validOutputs",
+                    "type": "tuple[]"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "nonce",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct OrderV3",
+                "name": "order",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint256",
+                "name": "inputIOIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "outputIOIndex",
+                "type": "uint256"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "signer",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256[]",
+                    "name": "context",
+                    "type": "uint256[]"
+                  },
+                  {
+                    "internalType": "bytes",
+                    "name": "signature",
+                    "type": "bytes"
+                  }
+                ],
+                "internalType": "struct SignedContextV1[]",
+                "name": "signedContext",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct TakeOrderConfigV3[]",
+            "name": "orders",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct TakeOrdersConfigV3",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "takeOrders2",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "totalTakerInput",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalTakerOutput",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      }
+    ],
+    "name": "vaultBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "targetAmount",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract IInterpreterV3",
+                "name": "interpreter",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IInterpreterStoreV2",
+                "name": "store",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "bytecode",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct EvaluableV3",
+            "name": "evaluable",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "context",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct SignedContextV1[]",
+            "name": "signedContext",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct TaskV1[]",
+        "name": "post",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "withdraw2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

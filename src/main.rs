@@ -2,6 +2,8 @@ use alloy::primitives::Address;
 use alloy::providers::{Provider, ProviderBuilder};
 // use alloy::rpc::types::Log;
 use alloy::sol;
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use clap::Parser;
 use tracing::*;
 
@@ -44,18 +46,17 @@ sol! {
         SignedContextV1[] signedContext;
     }
 
+    type IInterpreterV3 is address;
+    type IInterpreterStoreV2 is address;
+
     /// Used in struct OrderV3.
     ///
     /// Definition copied from
     /// https://github.com/rainlanguage/rain.interpreter.interface/blob/0247f7e27df7097bf0d6ea25b086925b4c2747d2/src/interface/IInterpreterCallerV3.sol#L20
     #[derive(Debug)]
     struct EvaluableV3 {
-        // NOTE: Compilation fails for the interface, so we use the address instead.
-        // IInterpreterV3 interpreter;
-        address interpreter;
-        // NOTE: Compilation fails for the interface, so we use the address instead.
-        // IInterpreterStoreV2 store;
-        address store;
+        IInterpreterV3 interpreter;
+        IInterpreterStoreV2 store;
         bytes bytecode;
     }
 
@@ -147,18 +148,36 @@ async fn main() -> anyhow::Result<()> {
         let end_block = start_block + BLOCKS_PER_REQ;
         debug!("Fetching logs from {start_block} to {end_block}");
 
-        let clearv2_logs = orderbook
-            .ClearV2_filter()
-            .from_block(start_block)
-            .to_block(end_block)
-            .query()
+        let clearv2_query = || async {
+            orderbook
+                .ClearV2_filter()
+                .from_block(start_block)
+                .to_block(end_block)
+                .query()
+                .await
+        };
+
+        let clearv2_logs = clearv2_query
+            .retry(ExponentialBuilder::default())
+            .notify(|err, dur| {
+                warn!("Retrying querying ClearV2 logs from {start_block} to {end_block} in {dur:?} due to {err:?}");
+            })
             .await?;
 
-        let takeorderv2_logs = orderbook
-            .TakeOrderV2_filter()
-            .from_block(start_block)
-            .to_block(end_block)
-            .query()
+        let takeorderv2_query = || async {
+            orderbook
+                .TakeOrderV2_filter()
+                .from_block(start_block)
+                .to_block(end_block)
+                .query()
+                .await
+        };
+
+        let takeorderv2_logs = takeorderv2_query
+            .retry(ExponentialBuilder::default())
+            .notify(|err, dur| {
+                warn!("Retrying querying TakeOrderV2 logs from {start_block} to {end_block} in {dur:?} due to {err:?}");
+            })
             .await?;
 
         let clearv2_log_count = clearv2_logs.len();

@@ -1,0 +1,30 @@
+[package]
+name = "flowatchdog"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+alloy = { version = "0.3.6", features = [
+    "contract",
+    "provider-http",
+    "rpc-types",
+] }
+
+# Had to pin the following transitive dependencies to make the project compile with Rust 1.79
+alloy-core = "=0.8.13"
+alloy-primitives = "=0.8.13"
+alloy-sol-type-parser = "=0.8.13"
+alloy-chains = "=0.1.47"
+litemap = "=0.7.4"
+native-tls = "=0.2.13"
+syn-solidity = "=0.8.13"
+zerofrom = "=0.1.5"
+
+clap = { version = "4.5.18", features = ["derive", "env"] }
+dotenv = "0.15.0"
+tokio = { version = "1.40.0", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0.97"

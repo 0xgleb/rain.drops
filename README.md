@@ -1,4 +1,4 @@
-# rain.droplets
+# rain.drops
 
 Raindex trade-level data collection pipeline.
 

@@ -1,10 +1,12 @@
-use alloy::primitives::Address;
+use alloy::primitives::{Address, FixedBytes};
 use alloy::providers::{Provider, ProviderBuilder};
-// use alloy::rpc::types::Log;
+use alloy::rpc::types::Log;
 use alloy::sol;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use clap::Parser;
+use itertools::Itertools;
+use std::collections::BTreeMap;
 use tracing::*;
 
 #[derive(Debug, Parser)]
@@ -24,12 +26,28 @@ sol! {
     IOrderBookV4, "./abi/orderbookv4.json"
 }
 
+#[derive(Debug)]
+enum TradeEvent {
+    ClearV2,
+    TakeOrderV2,
+}
+
+#[derive(Debug)]
+struct Trade {
+    // timestamp: u64,
+    event: TradeEvent,
+    tx_hash: FixedBytes<32>,
+    // tx_origin: Address,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     let env = Env::parse();
+    let env_filter = format!("none,rain_drops={log_level}", log_level = &env.log_level);
     tracing_subscriber::fmt()
         .with_max_level(env.log_level)
+        .with_env_filter(tracing_subscriber::EnvFilter::new(env_filter))
         .init();
 
     let rpc_url = env.json_rpc_http_url.parse()?;
@@ -65,6 +83,39 @@ async fn main() -> anyhow::Result<()> {
             })
             .await?;
 
+        let mut clearv2_trades = clearv2_logs
+            .into_iter()
+            .filter_map(
+                |(
+                    _event,
+                    Log {
+                        log_index,
+                        block_number,
+                        transaction_hash,
+                        ..
+                    },
+                )| {
+                    trace!("ClearV2 log: log_index={log_index:?} block_number={block_number:?} transaction_hash={transaction_hash:?}");
+
+                    let log_index = log_index?;
+                    let tx_hash = transaction_hash?;
+                    let block_number = block_number?;
+
+                    let trade = Trade {
+                        event: TradeEvent::ClearV2,
+                        tx_hash,
+                    };
+
+                    Some((block_number, (log_index, trade)))
+                },
+            )
+            .collect::<BTreeMap<_, _>>();
+
+        let clearv2_trades_count = clearv2_trades.len();
+        debug!(
+            "Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count:>02} ClearV2 events"
+        );
+
         let takeorderv2_query = || async {
             orderbook
                 .TakeOrderV2_filter()
@@ -81,42 +132,63 @@ async fn main() -> anyhow::Result<()> {
             })
             .await?;
 
-        let clearv2_log_count = clearv2_logs.len();
-        let takeorderv2_log_count = takeorderv2_logs.len();
+        let mut takeorderv2_trades = takeorderv2_logs
+            .into_iter()
+            .filter_map(
+                |(
+                    _event,
+                    Log {
+                        log_index,
+                        block_number,
+                        transaction_hash,
+                        ..
+                    },
+                )| {
+                    trace!("TakeOrderV2 log: log_index={log_index:?} block_number={block_number:?} transaction_hash={transaction_hash:?}");
 
-        info!(
-            "Blocks {start_block} through {end_block} emitted \
-            {clearv2_log_count:>02} ClearV2 and {takeorderv2_log_count:>02} TakeOrderV2 events"
+                    let log_index = log_index?;
+                    let tx_hash = transaction_hash?;
+                    let block_number = block_number?;
+
+                    let trade = Trade {
+                        event: TradeEvent::TakeOrderV2,
+                        tx_hash,
+                    };
+
+                    Some((block_number, (log_index, trade)))
+                },
+            )
+            .collect::<BTreeMap<_, _>>();
+
+        let takeorderv2_trades_count = takeorderv2_trades.len();
+        debug!(
+            "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count:>02} TakeOrderV2 events"
         );
 
-        //     let swaps = logs
-        //         .into_iter()
-        //         .map(
-        //             |(
-        //                 swap,
-        //                 Log {
-        //                     block_number,
-        //                     transaction_hash,
-        //                     ..
-        //                 },
-        //             )| {
-        //                 Trade {
-        //                     address: swap.to,
-        //                     weth: (swap.amount0In + swap.amount0Out).into(),
-        //                     yourai: (swap.amount1In + swap.amount1Out).into(),
-        //                     side: if swap.amount1In == U256::from(0) {
-        //                         Side::Buy
-        //                     } else {
-        //                         Side::Sell
-        //                     },
-        //                     block_num: block_number.unwrap(),
-        //                     tx_hash: transaction_hash.unwrap(),
-        //                 }
-        //             },
-        //         )
-        //         .collect::<Vec<_>>();
+        let blocks_with_trades = clearv2_trades
+            .keys()
+            .copied()
+            .chain(takeorderv2_trades.keys().copied())
+            .sorted();
 
-        //     info!("{swaps:#?}");
+        let trades = blocks_with_trades
+            .flat_map(|block_number| {
+                let clearv2_trade = clearv2_trades.remove(&block_number);
+                let takeorderv2_trade = takeorderv2_trades.remove(&block_number);
+
+                clearv2_trade
+                    .into_iter()
+                    .chain(takeorderv2_trade.into_iter())
+                    .sorted_by_key(|(log_index, _)| *log_index)
+                    .map(|(_, trade)| trade)
+            })
+            .collect_vec();
+
+        // Block range to test event ordering:
+        // Blocks 295976000 through 296076000 emitted 01 ClearV2 and 35 TakeOrderV2 events
+
+        let trade_count = trades.len();
+        info!("Blocks [{start_block}, {end_block}] emitted {trade_count:>02} trade events");
     }
 
     Ok(())

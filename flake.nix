@@ -19,7 +19,7 @@
       in {
         packages = rainix.packages.${system};
         devShell = pkgs.mkShell {
-          packages = with pkgs; [ rust-analyzer nixfmt-classic ];
+          packages = with pkgs; [ rust-analyzer nixfmt-classic cargo-watch ];
 
           shellHook = rainix.devShells.${system}.default.shellHook;
           buildInputs = [ rust-toolchain ]

@@ -1,5 +1,5 @@
 [package]
-name = "flowatchdog"
+name = "rain-drops"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ clap = { version = "4.5.18", features = ["derive", "env"] }
 dotenv = "0.15.0"
 tokio = { version = "1.40.0", features = ["full"] }
 tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 anyhow = "1.0.97"
 backon = "1.4.0"
+itertools = "0.14.0"

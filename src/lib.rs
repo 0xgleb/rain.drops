@@ -1,6 +1,6 @@
 use alloy::eips::BlockNumberOrTag;
-use alloy::network::AnyNetwork;
-use alloy::primitives::FixedBytes;
+use alloy::network::{AnyNetwork, BlockResponse, TransactionResponse};
+use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use alloy::providers::{Provider, RootProvider};
 use alloy::rpc::types::{BlockTransactionsKind, Log};
 use alloy::{sol, transports::http};
@@ -23,12 +23,23 @@ pub enum TradeEvent {
     TakeOrderV2,
 }
 
+/// A partial trade is a trade that has been parsed from a log event.
 #[derive(Debug, Clone)]
-pub struct Trade {
-    // timestamp: u64,
+pub struct PartialTrade {
+    log_index: u64,
     event: TradeEvent,
     tx_hash: FixedBytes<32>,
-    // tx_origin: Address,
+    block_number: BlockNumber,
+}
+
+/// A trade with all required fields that combines partial trades
+/// enriched with block data.
+#[derive(Debug, Clone)]
+pub struct Trade {
+    timestamp: u64,
+    event: TradeEvent,
+    tx_hash: FixedBytes<32>,
+    tx_origin: Address,
 }
 
 type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
@@ -60,44 +71,47 @@ pub async fn process_block_batch(
             })
             .await?;
 
-    let mut clearv2_trades = BTreeMap::<u64, Vec<(u64, Trade)>>::new();
+    let mut clearv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
 
-    let clearv2_trades_iter = clearv2_logs
-            .into_iter()
-            .filter_map(
-                |(
-                    _event,
-                    Log {
-                        log_index,
-                        block_number,
-                        transaction_hash,
-                        ..
-                    },
-                )| {
-                    trace!("ClearV2 log: log_index={log_index:?} block_number={block_number:?} transaction_hash={transaction_hash:?}");
-
-                    let log_index = log_index?;
-                    let tx_hash = transaction_hash?;
-                    let block_number = block_number?;
-
-                    let trade = Trade {
-                        event: TradeEvent::ClearV2,
-                        tx_hash,
-                    };
-
-                    Some((block_number, (log_index, trade)))
-                },
+    let clearv2_trades_iter = clearv2_logs.into_iter().filter_map(
+        |(
+            _event,
+            Log {
+                log_index,
+                block_number,
+                transaction_hash,
+                ..
+            },
+        )| {
+            trace!(
+                "ClearV2 log: log_index={log_index:?} block_number={block_number:?} \
+                    transaction_hash={transaction_hash:?}"
             );
 
-    for (block_number, (log_index, trade)) in clearv2_trades_iter {
+            let log_index = log_index?;
+            let tx_hash = transaction_hash?;
+            let block_number = block_number?;
+
+            let trade = PartialTrade {
+                log_index,
+                event: TradeEvent::ClearV2,
+                tx_hash,
+                block_number,
+            };
+
+            Some((block_number, trade))
+        },
+    );
+
+    for (block_number, trade) in clearv2_trades_iter {
         clearv2_trades
             .entry(block_number)
-            .and_modify(|trades| trades.push((log_index, trade.clone())))
-            .or_insert(vec![(log_index, trade)]);
+            .and_modify(|trades| trades.push(trade.clone()))
+            .or_insert(vec![trade]);
     }
 
     let clearv2_trades_count: usize = clearv2_trades.values().map(|trades| trades.len()).sum();
-    debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count:>02} ClearV2 events");
+    debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
 
     let takeorderv2_query = || async {
         orderbook
@@ -115,7 +129,7 @@ pub async fn process_block_batch(
             })
             .await?;
 
-    let mut takeorderv2_trades = BTreeMap::<u64, Vec<(u64, Trade)>>::new();
+    let mut takeorderv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
 
     let takeorderv2_trades_iter = takeorderv2_logs
             .into_iter()
@@ -135,27 +149,29 @@ pub async fn process_block_batch(
                     let tx_hash = transaction_hash?;
                     let block_number = block_number?;
 
-                    let trade = Trade {
+                    let trade = PartialTrade {
+                        log_index,
                         event: TradeEvent::TakeOrderV2,
                         tx_hash,
+                        block_number,
                     };
 
-                    Some((block_number, (log_index, trade)))
+                    Some((block_number, trade))
                 },
             );
 
-    for (block_number, (log_index, trade)) in takeorderv2_trades_iter {
+    for (block_number, trade) in takeorderv2_trades_iter {
         takeorderv2_trades
             .entry(block_number)
-            .and_modify(|trades| trades.push((log_index, trade.clone())))
-            .or_insert(vec![(log_index, trade)]);
+            .and_modify(|trades| trades.push(trade.clone()))
+            .or_insert(vec![trade]);
     }
 
     let takeorderv2_trades_count: usize =
         takeorderv2_trades.values().map(|trades| trades.len()).sum();
     debug!(
-            "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count:>02} TakeOrderV2 events"
-        );
+        "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count} TakeOrderV2 events"
+    );
 
     let blocks_with_trades = clearv2_trades
         .keys()
@@ -166,12 +182,12 @@ pub async fn process_block_batch(
 
     let mut block_bodies = BTreeMap::new();
 
-    for block_number in &blocks_with_trades {
-        debug!("Fetching block #{block_number}");
+    for block_number in blocks_with_trades.clone() {
+        trace!("Fetching block #{block_number}");
         let block = orderbook
             .provider()
             .get_block_by_number(
-                BlockNumberOrTag::Number(*block_number),
+                BlockNumberOrTag::Number(block_number),
                 BlockTransactionsKind::Full,
             )
             .await?;
@@ -196,8 +212,32 @@ pub async fn process_block_batch(
             clearv2_trade
                 .into_iter()
                 .chain(takeorderv2_trade.into_iter())
-                .sorted_by_key(|(log_index, _)| *log_index)
-                .map(|(_, trade)| trade)
+                .sorted_by_key(|trade| trade.log_index)
+                .map(|trade| trade)
+        })
+        .map(|trade| {
+            let block = block_bodies.remove(&trade.block_number).unwrap();
+
+            let timestamp = block.header.timestamp;
+            let tx_origin = block
+                .transactions()
+                .clone()
+                .into_transactions()
+                .find_map(|tx| {
+                    if tx.tx_hash() == trade.tx_hash {
+                        Some(tx.from)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+
+            Trade {
+                timestamp,
+                tx_origin,
+                event: trade.event,
+                tx_hash: trade.tx_hash,
+            }
         })
         .collect_vec();
 
@@ -205,7 +245,10 @@ pub async fn process_block_batch(
     // Blocks 295976000 through 296076000 emitted 01 ClearV2 and 35 TakeOrderV2 events
 
     let trade_count = trades.len();
-    info!("Blocks [{start_block}, {end_block}] emitted {trade_count:>02} trade events");
+    info!("Blocks [{start_block}, {end_block}] emitted {trade_count} trade events");
+
+    #[cfg(debug_assertions)]
+    assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);
 
     Ok(())
 }

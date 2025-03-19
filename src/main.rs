@@ -1,6 +1,8 @@
+use alloy::eips::BlockNumberOrTag;
+use alloy::network::AnyNetwork;
 use alloy::primitives::{Address, FixedBytes};
 use alloy::providers::{Provider, ProviderBuilder};
-use alloy::rpc::types::Log;
+use alloy::rpc::types::{BlockTransactionsKind, Log};
 use alloy::sol;
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -11,7 +13,7 @@ use tracing::*;
 
 #[derive(Debug, Parser)]
 struct Env {
-    #[clap(long, env, default_value = "INFO")]
+    #[clap(long, env, default_value = "DEBUG")]
     log_level: Level,
     #[clap(long, env)]
     json_rpc_http_url: String,
@@ -26,13 +28,13 @@ sol! {
     IOrderBookV4, "./abi/orderbookv4.json"
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TradeEvent {
     ClearV2,
     TakeOrderV2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Trade {
     // timestamp: u64,
     event: TradeEvent,
@@ -51,13 +53,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let rpc_url = env.json_rpc_http_url.parse()?;
-    let provider = ProviderBuilder::new().on_http(rpc_url);
+    let provider = ProviderBuilder::new()
+        .network::<AnyNetwork>()
+        .on_http(rpc_url);
     let latest_block = provider.get_block_number().await?;
 
     info!("Latest block is {latest_block}");
 
     let orderbook = env.orderbookv4_deployment_address.parse::<Address>()?;
-    let orderbook = IOrderBookV4::new(orderbook, provider);
+    let orderbook = IOrderBookV4::new(orderbook, provider.clone());
 
     const BLOCKS_PER_REQ: u64 = 100_000;
 
@@ -83,7 +87,9 @@ async fn main() -> anyhow::Result<()> {
             })
             .await?;
 
-        let mut clearv2_trades = clearv2_logs
+        let mut clearv2_trades = BTreeMap::<u64, Vec<(u64, Trade)>>::new();
+
+        let clearv2_trades_iter = clearv2_logs
             .into_iter()
             .filter_map(
                 |(
@@ -108,10 +114,16 @@ async fn main() -> anyhow::Result<()> {
 
                     Some((block_number, (log_index, trade)))
                 },
-            )
-            .collect::<BTreeMap<_, _>>();
+            );
 
-        let clearv2_trades_count = clearv2_trades.len();
+        for (block_number, (log_index, trade)) in clearv2_trades_iter {
+            clearv2_trades
+                .entry(block_number)
+                .and_modify(|trades| trades.push((log_index, trade.clone())))
+                .or_insert(vec![(log_index, trade)]);
+        }
+
+        let clearv2_trades_count: usize = clearv2_trades.values().map(|trades| trades.len()).sum();
         debug!(
             "Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count:>02} ClearV2 events"
         );
@@ -132,7 +144,9 @@ async fn main() -> anyhow::Result<()> {
             })
             .await?;
 
-        let mut takeorderv2_trades = takeorderv2_logs
+        let mut takeorderv2_trades = BTreeMap::<u64, Vec<(u64, Trade)>>::new();
+
+        let takeorderv2_trades_iter = takeorderv2_logs
             .into_iter()
             .filter_map(
                 |(
@@ -157,10 +171,17 @@ async fn main() -> anyhow::Result<()> {
 
                     Some((block_number, (log_index, trade)))
                 },
-            )
-            .collect::<BTreeMap<_, _>>();
+            );
 
-        let takeorderv2_trades_count = takeorderv2_trades.len();
+        for (block_number, (log_index, trade)) in takeorderv2_trades_iter {
+            takeorderv2_trades
+                .entry(block_number)
+                .and_modify(|trades| trades.push((log_index, trade.clone())))
+                .or_insert(vec![(log_index, trade)]);
+        }
+
+        let takeorderv2_trades_count: usize =
+            takeorderv2_trades.values().map(|trades| trades.len()).sum();
         debug!(
             "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count:>02} TakeOrderV2 events"
         );
@@ -169,12 +190,37 @@ async fn main() -> anyhow::Result<()> {
             .keys()
             .copied()
             .chain(takeorderv2_trades.keys().copied())
-            .sorted();
+            .sorted()
+            .collect_vec();
+
+        let mut block_bodies = BTreeMap::new();
+
+        for block_number in &blocks_with_trades {
+            debug!("Fetching block #{block_number}");
+            let block = provider
+                .get_block_by_number(
+                    BlockNumberOrTag::Number(*block_number),
+                    BlockTransactionsKind::Full,
+                )
+                .await?;
+
+            match block {
+                None => {
+                    error!("Get block with number {block_number} returned None");
+                    continue;
+                }
+                Some(block) => {
+                    block_bodies.insert(block_number, block);
+                }
+            }
+        }
 
         let trades = blocks_with_trades
+            .into_iter()
             .flat_map(|block_number| {
-                let clearv2_trade = clearv2_trades.remove(&block_number);
-                let takeorderv2_trade = takeorderv2_trades.remove(&block_number);
+                let clearv2_trade = clearv2_trades.remove(&block_number).unwrap_or_default();
+                let takeorderv2_trade =
+                    takeorderv2_trades.remove(&block_number).unwrap_or_default();
 
                 clearv2_trade
                     .into_iter()

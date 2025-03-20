@@ -10,13 +10,15 @@ pub struct Env {
     #[clap(long, env, default_value = "DEBUG")]
     log_level: tracing::Level,
     #[clap(long, env, default_value = "trades.csv")]
-    pub csv_path: String,
+    pub(crate) csv_path: String,
     #[clap(long, env)]
     json_rpc_http_url: String,
     #[clap(long, env)]
     orderbookv4_deployment_address: String,
     #[clap(long, env)]
-    pub orderbookv4_deployment_block: u64,
+    pub(crate) orderbookv4_deployment_block: u64,
+    #[clap(long, env, default_value = "100000")]
+    pub(crate) blocks_per_log_request: u64,
 }
 
 impl Env {

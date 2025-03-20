@@ -16,6 +16,81 @@ sol! {
 pub mod env;
 pub mod logs;
 
+pub async fn update_trades_csv(
+    env: &env::Env,
+    orderbook: &OrderbookContract,
+) -> anyhow::Result<()> {
+    let start_block = get_start_block(env, orderbook).await?;
+
+    let csv_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(&env.csv_path)
+        .unwrap();
+
+    let mut csv_writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .from_writer(csv_file);
+
+    let latest_block = orderbook.provider().get_block_number().await?;
+    info!("Latest block is {latest_block}");
+
+    for block_batch_start in
+        (start_block..latest_block).step_by(env.blocks_per_log_request as usize)
+    {
+        let block_batch_end = block_batch_start + env.blocks_per_log_request;
+        process_block_batch(
+            &mut csv_writer,
+            &orderbook,
+            block_batch_start,
+            block_batch_end,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn get_start_block(
+    env: &env::Env,
+    orderbook: &OrderbookContract,
+) -> anyhow::Result<BlockNumber> {
+    if std::fs::metadata(&env.csv_path).is_err() {
+        return Ok(env.orderbookv4_deployment_block);
+    }
+
+    let mut csv_reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(&env.csv_path)?;
+    let saved_trades: Vec<Trade> = csv_reader.deserialize().collect::<Result<_, _>>()?;
+    info!("Found {} saved trades", saved_trades.len());
+    let latest_trade = saved_trades.last();
+
+    if latest_trade.is_none() {
+        return Ok(env.orderbookv4_deployment_block);
+    }
+
+    let latest_trade = latest_trade.unwrap();
+    info!("Latest saved trade: {latest_trade:?}");
+
+    let latest_trade_tx_hash = latest_trade.tx_hash;
+    debug!("Fetching transaction with hash {latest_trade_tx_hash}");
+    let tx = orderbook
+        .provider()
+        .get_transaction_by_hash(latest_trade_tx_hash)
+        .await?;
+
+    let start_block = tx
+        .map(|tx| tx.block_number)
+        .flatten()
+        .map(|block_num| block_num + 1)
+        .unwrap_or(env.orderbookv4_deployment_block);
+
+    info!("Starting from block {start_block}");
+    Ok(start_block)
+}
+
 /// A partial trade is a trade that has been parsed from a log event.
 #[derive(Debug, Clone)]
 pub struct PartialTrade {
@@ -73,7 +148,7 @@ type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
     AnyNetwork,
 >;
 
-pub async fn process_block_batch(
+async fn process_block_batch(
     csv_writer: &mut csv::Writer<std::fs::File>,
     orderbook: &OrderbookContract,
     start_block: u64,

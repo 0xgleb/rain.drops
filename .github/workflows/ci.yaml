@@ -1,8 +1,7 @@
-name: "CI"
+name: "CI" # TODO: split into automatic check and manual data collection workflows
 
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - master
@@ -17,12 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Run Flake checks
         run: nix flake check --show-trace
 
-      - name: Run Flake checks
+      - name: Download previously saved trades
+        uses: actions/download-artifact@v4
+        with:
+          name: trades.csv
+
+      - name: Collect OrderbookV4 trades
         env:
           JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}
         run: |

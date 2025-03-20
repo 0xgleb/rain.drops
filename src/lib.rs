@@ -13,8 +13,9 @@ sol! {
     IOrderBookV4, "./abi/orderbookv4.json"
 }
 
-pub mod env;
-pub mod logs;
+mod env;
+mod logs;
+mod onchain;
 
 use logs::TradeEvent;
 

@@ -25,10 +25,11 @@ jobs:
       - name: Run Flake checks
         env:
           JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}
-          ORDERBOOKV4_DEPLOYMENT_ADDRESS: 0x550878091b2B1506069F61ae59e3A5484Bca9166
-          ORDERBOOKV4_DEPLOYMENT_BLOCK: 256576979
         run: |
-          nix -v develop -c cargo run -- --log-level DEBUG
+          nix -v develop -c cargo run -- \
+            --orderbookv4-deployment-address 0x550878091b2B1506069F61ae59e3A5484Bca9166 \
+            --orderbookv4-deployment-block 256576979 \
+            --log-level DEBUG
 
       - name: Archive trades.csv
         uses: actions/upload-artifact@v4

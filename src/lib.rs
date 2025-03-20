@@ -1,11 +1,9 @@
 use alloy::eips::BlockNumberOrTag;
-use alloy::network::{AnyNetwork, BlockResponse, TransactionResponse};
+use alloy::network::{AnyHeader, AnyNetwork, AnyTxEnvelope, BlockResponse, TransactionResponse};
 use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use alloy::providers::{Provider, RootProvider};
-use alloy::rpc::types::{BlockTransactionsKind, Log};
+use alloy::rpc::types::{Block, BlockTransactions, BlockTransactionsKind, Header, Transaction};
 use alloy::{sol, transports::http};
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use tracing::*;
@@ -16,6 +14,7 @@ sol! {
 }
 
 pub mod env;
+pub mod logs;
 
 #[derive(Debug, Clone)]
 pub enum TradeEvent {
@@ -55,117 +54,13 @@ pub async fn process_block_batch(
 ) -> anyhow::Result<()> {
     debug!("Fetching logs from {start_block} to {end_block}");
 
-    let clearv2_query = || async {
-        orderbook
-            .ClearV2_filter()
-            .from_block(start_block)
-            .to_block(end_block)
-            .query()
-            .await
-    };
-
-    let clearv2_logs = clearv2_query
-            .retry(ExponentialBuilder::default())
-            .notify(|err, dur| {
-                warn!("Retrying querying ClearV2 logs from {start_block} to {end_block} in {dur:?} due to {err:?}");
-            })
-            .await?;
-
-    let mut clearv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
-
-    let clearv2_trades_iter = clearv2_logs.into_iter().filter_map(
-        |(
-            _event,
-            Log {
-                log_index,
-                block_number,
-                transaction_hash,
-                ..
-            },
-        )| {
-            trace!(
-                "ClearV2 log: log_index={log_index:?} block_number={block_number:?} \
-                    transaction_hash={transaction_hash:?}"
-            );
-
-            let log_index = log_index?;
-            let tx_hash = transaction_hash?;
-            let block_number = block_number?;
-
-            let trade = PartialTrade {
-                log_index,
-                event: TradeEvent::ClearV2,
-                tx_hash,
-                block_number,
-            };
-
-            Some((block_number, trade))
-        },
-    );
-
-    for (block_number, trade) in clearv2_trades_iter {
-        clearv2_trades
-            .entry(block_number)
-            .and_modify(|trades| trades.push(trade.clone()))
-            .or_insert(vec![trade]);
-    }
+    let mut clearv2_trades = logs::fetch_clearv2_trades(start_block, end_block, orderbook).await?;
 
     let clearv2_trades_count: usize = clearv2_trades.values().map(|trades| trades.len()).sum();
     debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
 
-    let takeorderv2_query = || async {
-        orderbook
-            .TakeOrderV2_filter()
-            .from_block(start_block)
-            .to_block(end_block)
-            .query()
-            .await
-    };
-
-    let takeorderv2_logs = takeorderv2_query
-            .retry(ExponentialBuilder::default())
-            .notify(|err, dur| {
-                warn!("Retrying querying TakeOrderV2 logs from {start_block} to {end_block} in {dur:?} due to {err:?}");
-            })
-            .await?;
-
-    let mut takeorderv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
-
-    let takeorderv2_trades_iter = takeorderv2_logs
-            .into_iter()
-            .filter_map(
-                |(
-                    _event,
-                    Log {
-                        log_index,
-                        block_number,
-                        transaction_hash,
-                        ..
-                    },
-                )| {
-                    trace!("TakeOrderV2 log: log_index={log_index:?} block_number={block_number:?} transaction_hash={transaction_hash:?}");
-
-                    let log_index = log_index?;
-                    let tx_hash = transaction_hash?;
-                    let block_number = block_number?;
-
-                    let trade = PartialTrade {
-                        log_index,
-                        event: TradeEvent::TakeOrderV2,
-                        tx_hash,
-                        block_number,
-                    };
-
-                    Some((block_number, trade))
-                },
-            );
-
-    for (block_number, trade) in takeorderv2_trades_iter {
-        takeorderv2_trades
-            .entry(block_number)
-            .and_modify(|trades| trades.push(trade.clone()))
-            .or_insert(vec![trade]);
-    }
+    let mut takeorderv2_trades =
+        logs::fetch_takeorderv2_trades(start_block, end_block, orderbook).await?;
 
     let takeorderv2_trades_count: usize =
         takeorderv2_trades.values().map(|trades| trades.len()).sum();
@@ -180,28 +75,7 @@ pub async fn process_block_batch(
         .sorted()
         .collect_vec();
 
-    let mut block_bodies = BTreeMap::new();
-
-    for block_number in blocks_with_trades.clone() {
-        trace!("Fetching block #{block_number}");
-        let block = orderbook
-            .provider()
-            .get_block_by_number(
-                BlockNumberOrTag::Number(block_number),
-                BlockTransactionsKind::Full,
-            )
-            .await?;
-
-        match block {
-            None => {
-                error!("Get block with number {block_number} returned None");
-                continue;
-            }
-            Some(block) => {
-                block_bodies.insert(block_number, block);
-            }
-        }
-    }
+    let mut block_bodies = fetch_block_bodies(orderbook, blocks_with_trades.clone()).await?;
 
     let trades = blocks_with_trades
         .into_iter()
@@ -251,4 +125,52 @@ pub async fn process_block_batch(
     assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);
 
     Ok(())
+}
+
+async fn fetch_block_bodies(
+    orderbook: &OrderbookContract,
+    block_numbers: impl IntoIterator<Item = BlockNumber>,
+) -> anyhow::Result<BTreeMap<BlockNumber, Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>>> {
+    let mut block_bodies = BTreeMap::new();
+
+    for block_number in block_numbers {
+        trace!("Fetching block #{block_number}");
+        let block = orderbook
+            .provider()
+            .get_block_by_number(
+                BlockNumberOrTag::Number(block_number),
+                BlockTransactionsKind::Full,
+            )
+            .await?;
+
+        match block {
+            None => {
+                error!("Get block with number {block_number} returned None");
+                continue;
+            }
+            Some(block) => {
+                let Block {
+                    header,
+                    uncles,
+                    transactions,
+                    withdrawals,
+                } = block.inner;
+                let transactions = transactions
+                    .into_transactions()
+                    .map(|tx| tx.inner)
+                    .collect_vec();
+                let transactions = BlockTransactions::Full(transactions);
+                let block = Block {
+                    header,
+                    uncles,
+                    transactions,
+                    withdrawals,
+                };
+
+                block_bodies.insert(block_number, block);
+            }
+        }
+    }
+
+    Ok(block_bodies)
 }

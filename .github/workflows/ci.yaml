@@ -25,6 +25,10 @@ jobs:
       - name: Run Flake checks
         run: nix flake check --show-trace
 
+      - name: Run Clippy
+        run: |
+          nix develop -c 'cargo clippy -- --deny warnings'
+
       - name: Run tests
         env:
           JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}

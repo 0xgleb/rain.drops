@@ -23,7 +23,7 @@ pub async fn update_trades_csv(
     let start_block = get_start_block(env, orderbook).await?;
 
     let csv_file = std::fs::OpenOptions::new()
-        .write(true)
+        
         .create(true)
         .append(true)
         .open(&env.csv_path)
@@ -42,7 +42,7 @@ pub async fn update_trades_csv(
         let block_batch_end = block_batch_start + env.blocks_per_log_request;
         process_block_batch(
             &mut csv_writer,
-            &orderbook,
+            orderbook,
             block_batch_start,
             block_batch_end,
         )
@@ -82,8 +82,7 @@ async fn get_start_block(
         .await?;
 
     let start_block = tx
-        .map(|tx| tx.block_number)
-        .flatten()
+        .and_then(|tx| tx.block_number)
         .map(|block_num| block_num + 1)
         .unwrap_or(env.orderbookv4_deployment_block);
 
@@ -189,7 +188,6 @@ async fn process_block_batch(
                 .into_iter()
                 .chain(takeorderv2_trade.into_iter())
                 .sorted_by_key(|trade| trade.log_index)
-                .map(|trade| trade)
         })
         .map(|trade| {
             let block = block_bodies.remove(&trade.block_number).unwrap();

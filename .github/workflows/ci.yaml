@@ -27,7 +27,7 @@ jobs:
 
       - name: Run Clippy
         run: |
-          nix develop -c 'cargo clippy -- --deny warnings'
+          nix develop -c cargo clippy -- --deny warnings
 
       - name: Run tests
         env:

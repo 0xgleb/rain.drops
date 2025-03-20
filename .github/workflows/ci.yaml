@@ -1,10 +1,14 @@
-name: "Code Checks Pipeline"
+name: "Full CI Pipeline"
 
 on:
   pull_request:
   push:
     branches:
       - master
+
+concurrency:
+  group: ${{ github.ref }}-full-ci
+  cancel-in-progress: true
 
 jobs:
   checks:
@@ -28,3 +32,17 @@ jobs:
           ORDERBOOKV4_DEPLOYMENT_BLOCK: 256576979
         run: |
           nix develop -c cargo test
+
+      - name: Collect OrderbookV4 trades
+        env:
+          JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}
+          ORDERBOOKV4_DEPLOYMENT_ADDRESS: "0x550878091b2B1506069F61ae59e3A5484Bca9166"
+          ORDERBOOKV4_DEPLOYMENT_BLOCK: 256576979
+        run: |
+          nix develop -c cargo run -- --log-level INFO
+
+      - name: Archive trades.csv
+        uses: actions/upload-artifact@v4
+        with:
+          name: arbitrum-trades
+          path: trades.csv

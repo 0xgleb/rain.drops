@@ -16,6 +16,8 @@ sol! {
 pub mod env;
 pub mod logs;
 
+use logs::TradeEvent;
+
 pub async fn update_trades_csv(
     env: &env::Env,
     orderbook: &OrderbookContract,
@@ -23,7 +25,6 @@ pub async fn update_trades_csv(
     let start_block = get_start_block(env, orderbook).await?;
 
     let csv_file = std::fs::OpenOptions::new()
-        
         .create(true)
         .append(true)
         .open(&env.csv_path)
@@ -89,47 +90,6 @@ async fn get_start_block(
     info!("Starting from block {start_block}");
     Ok(start_block)
 }
-
-/// A partial trade is a trade that has been parsed from a log event.
-#[derive(Debug, Clone)]
-pub struct PartialTrade {
-    log_index: u64,
-    block_number: BlockNumber,
-    tx_hash: FixedBytes<32>,
-    event: TradeEvent,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum TradeEvent {
-    ClearV2,
-    TakeOrderV2,
-}
-
-// impl serde::Serialize for TradeEvent {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         match self {
-//             TradeEvent::ClearV2 => serializer.serialize_str("ClearV2"),
-//             TradeEvent::TakeOrderV2 => serializer.serialize_str("TakeOrderV2"),
-//         }
-//     }
-// }
-
-// impl<'de> serde::Deserialize<'de> for TradeEvent {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         let s = String::deserialize(deserializer)?;
-//         match s.as_str() {
-//             "ClearV2" => Ok(TradeEvent::ClearV2),
-//             "TakeOrderV2" => Ok(TradeEvent::TakeOrderV2),
-//             _ => Err(serde::de::Error::custom("Invalid trade event")),
-//         }
-//     }
-// }
 
 /// A trade with all required fields that combines partial trades
 /// enriched with block data.

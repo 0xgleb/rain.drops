@@ -1,17 +1,33 @@
 use alloy::primitives::BlockNumber;
+use alloy::primitives::FixedBytes;
 use alloy::rpc::types::Log;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use std::collections::BTreeMap;
 use tracing::*;
 
-use crate::{OrderbookContract, PartialTrade, TradeEvent};
+use crate::OrderbookContract;
+
+/// A partial trade is a trade that has been parsed from a log event.
+#[derive(Debug, Clone)]
+pub(crate) struct TradeLog {
+    pub(crate) log_index: u64,
+    pub(crate) block_number: BlockNumber,
+    pub(crate) tx_hash: FixedBytes<32>,
+    pub(crate) event: TradeEvent,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum TradeEvent {
+    ClearV2,
+    TakeOrderV2,
+}
 
 pub(crate) async fn fetch_clearv2_trades(
     start_block: u64,
     end_block: u64,
     orderbook: &OrderbookContract,
-) -> anyhow::Result<BTreeMap<BlockNumber, Vec<PartialTrade>>> {
+) -> anyhow::Result<BTreeMap<BlockNumber, Vec<TradeLog>>> {
     let clearv2_query = || async {
         orderbook
             .ClearV2_filter()
@@ -28,7 +44,7 @@ pub(crate) async fn fetch_clearv2_trades(
             })
             .await?;
 
-    let mut clearv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
+    let mut clearv2_trades = BTreeMap::<BlockNumber, Vec<TradeLog>>::new();
 
     let clearv2_trades_iter = clearv2_logs.into_iter().filter_map(
         |(
@@ -49,7 +65,7 @@ pub(crate) async fn fetch_clearv2_trades(
             let tx_hash = transaction_hash?;
             let block_number = block_number?;
 
-            let trade = PartialTrade {
+            let trade = TradeLog {
                 log_index,
                 event: TradeEvent::ClearV2,
                 tx_hash,
@@ -74,7 +90,7 @@ pub(crate) async fn fetch_takeorderv2_trades(
     start_block: u64,
     end_block: u64,
     orderbook: &OrderbookContract,
-) -> anyhow::Result<BTreeMap<BlockNumber, Vec<PartialTrade>>> {
+) -> anyhow::Result<BTreeMap<BlockNumber, Vec<TradeLog>>> {
     let takeorderv2_query = || async {
         orderbook
             .TakeOrderV2_filter()
@@ -91,7 +107,7 @@ pub(crate) async fn fetch_takeorderv2_trades(
             })
             .await?;
 
-    let mut takeorderv2_trades = BTreeMap::<BlockNumber, Vec<PartialTrade>>::new();
+    let mut takeorderv2_trades = BTreeMap::<BlockNumber, Vec<TradeLog>>::new();
 
     let takeorderv2_trades_iter = takeorderv2_logs
             .into_iter()
@@ -111,7 +127,7 @@ pub(crate) async fn fetch_takeorderv2_trades(
                     let tx_hash = transaction_hash?;
                     let block_number = block_number?;
 
-                    let trade = PartialTrade {
+                    let trade = TradeLog {
                         log_index,
                         event: TradeEvent::TakeOrderV2,
                         tx_hash,

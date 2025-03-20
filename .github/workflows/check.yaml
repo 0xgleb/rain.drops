@@ -1,0 +1,30 @@
+name: "Code Checks Pipeline"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Run Flake checks
+        run: nix flake check --show-trace
+
+      - name: Run tests
+        env:
+          JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}
+          ORDERBOOKV4_DEPLOYMENT_ADDRESS: "0x550878091b2B1506069F61ae59e3A5484Bca9166"
+          ORDERBOOKV4_DEPLOYMENT_BLOCK: 256576979
+        run: |
+          nix develop -c cargo test

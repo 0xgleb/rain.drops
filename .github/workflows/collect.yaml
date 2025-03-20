@@ -1,13 +1,19 @@
-name: "CI" # TODO: split into automatic check and manual data collection workflows
+name: "Trade Collection Pipeline"
 
 on:
   workflow_dispatch:
-  push:
+    inputs:
+      download_previous_trades:
+        description: "Whether to download previously saved trades"
+        required: false
+        default: false
+        type: boolean
+  push: # TODO: remove this later
     branches:
       - master
 
 jobs:
-  checks:
+  collect:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -18,25 +24,22 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/flakehub-cache-action@main
 
-      - name: Run Flake checks
-        run: nix flake check --show-trace
-
       - name: Download previously saved trades
+        if: ${{ inputs.download_previous_trades }}
         uses: actions/download-artifact@v4
         with:
-          name: trades.csv
+          name: arbitrum-trades
 
       - name: Collect OrderbookV4 trades
         env:
           JSON_RPC_HTTP_URL: ${{ secrets.ARBITRUM_JSON_RPC_HTTP_URL }}
+          ORDERBOOKV4_DEPLOYMENT_ADDRESS: "0x550878091b2B1506069F61ae59e3A5484Bca9166"
+          ORDERBOOKV4_DEPLOYMENT_BLOCK: 256576979
         run: |
-          nix develop -c cargo run -- \
-            --orderbookv4-deployment-address 0x550878091b2B1506069F61ae59e3A5484Bca9166 \
-            --orderbookv4-deployment-block 256576979 \
-            --log-level DEBUG
+          nix develop -c cargo run -- --log-level INFO
 
       - name: Archive trades.csv
         uses: actions/upload-artifact@v4
         with:
-          name: trades.csv
+          name: arbitrum-trades
           path: trades.csv

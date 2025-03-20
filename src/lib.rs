@@ -16,29 +16,55 @@ sol! {
 pub mod env;
 pub mod logs;
 
+/// A partial trade is a trade that has been parsed from a log event.
 #[derive(Debug, Clone)]
+pub struct PartialTrade {
+    log_index: u64,
+    block_number: BlockNumber,
+    tx_hash: FixedBytes<32>,
+    event: TradeEvent,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TradeEvent {
     ClearV2,
     TakeOrderV2,
 }
 
-/// A partial trade is a trade that has been parsed from a log event.
-#[derive(Debug, Clone)]
-pub struct PartialTrade {
-    log_index: u64,
-    event: TradeEvent,
-    tx_hash: FixedBytes<32>,
-    block_number: BlockNumber,
-}
+// impl serde::Serialize for TradeEvent {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         match self {
+//             TradeEvent::ClearV2 => serializer.serialize_str("ClearV2"),
+//             TradeEvent::TakeOrderV2 => serializer.serialize_str("TakeOrderV2"),
+//         }
+//     }
+// }
+
+// impl<'de> serde::Deserialize<'de> for TradeEvent {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: serde::Deserializer<'de>,
+//     {
+//         let s = String::deserialize(deserializer)?;
+//         match s.as_str() {
+//             "ClearV2" => Ok(TradeEvent::ClearV2),
+//             "TakeOrderV2" => Ok(TradeEvent::TakeOrderV2),
+//             _ => Err(serde::de::Error::custom("Invalid trade event")),
+//         }
+//     }
+// }
 
 /// A trade with all required fields that combines partial trades
 /// enriched with block data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Trade {
     timestamp: u64,
-    event: TradeEvent,
-    tx_hash: FixedBytes<32>,
     tx_origin: Address,
+    tx_hash: FixedBytes<32>,
+    event: TradeEvent,
 }
 
 type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
@@ -48,9 +74,10 @@ type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
 >;
 
 pub async fn process_block_batch(
+    csv_writer: &mut csv::Writer<std::fs::File>,
+    orderbook: &OrderbookContract,
     start_block: u64,
     end_block: u64,
-    orderbook: &OrderbookContract,
 ) -> anyhow::Result<()> {
     debug!("Fetching logs from {start_block} to {end_block}");
 
@@ -123,6 +150,11 @@ pub async fn process_block_batch(
 
     #[cfg(debug_assertions)]
     assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);
+
+    for trade in trades {
+        csv_writer.serialize(trade)?;
+    }
+    csv_writer.flush()?;
 
     Ok(())
 }

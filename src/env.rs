@@ -9,6 +9,8 @@ use crate::{IOrderBookV4, OrderbookContract};
 pub struct Env {
     #[clap(long, env, default_value = "DEBUG")]
     log_level: tracing::Level,
+    #[clap(long, env, default_value = "trades.csv")]
+    pub csv_path: String,
     #[clap(long, env)]
     json_rpc_http_url: String,
     #[clap(long, env)]

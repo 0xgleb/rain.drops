@@ -9,3 +9,4 @@
 # Misc
 .env
 *.local
+*.csv

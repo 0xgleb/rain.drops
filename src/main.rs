@@ -1,3 +1,5 @@
+#![warn(clippy::complexity)]
+
 use ::rain_drops::env::Env;
 use ::rain_drops::onchain::real::RealChain;
 use ::rain_drops::update_trades_csv;

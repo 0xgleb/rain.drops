@@ -1,3 +1,6 @@
+//! A mock implementation of the [`OnChain`] trait that allows for
+//! deterministic testing by mocking the current block number.
+
 use alloy::network::{AnyHeader, AnyTxEnvelope};
 use alloy::primitives::{BlockNumber, FixedBytes};
 use alloy::rpc::types::{Block, Header, Transaction};
@@ -16,6 +19,8 @@ pub(crate) struct MockChain {
 }
 
 impl MockChain {
+    /// Create a new [`MockChain`] wrapper around the given orderbook
+    /// contract.
     pub(crate) fn new(
         current_block: BlockNumber,
         orderbook_contract: OrderbookContract,
@@ -23,6 +28,7 @@ impl MockChain {
         Self { current_block, real_chain: RealChain::new(orderbook_contract) }
     }
 
+    /// Set the current block number.
     pub(crate) fn set_current_block(&mut self, block_number: BlockNumber) {
         self.current_block = block_number;
     }
@@ -58,7 +64,7 @@ impl OnChain for MockChain {
 
     async fn fetch_block_bodies(
         &self,
-        block_numbers: impl IntoIterator<Item = BlockNumber>,
+        block_numbers: Vec<BlockNumber>,
     ) -> anyhow::Result<
         BTreeMap<
             BlockNumber,

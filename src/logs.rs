@@ -1,3 +1,5 @@
+//! A module for fetching and parsing OrderbookV4 event logs from the blockchain.
+
 use alloy::primitives::BlockNumber;
 use alloy::primitives::FixedBytes;
 use alloy::rpc::types::Log;
@@ -17,12 +19,14 @@ pub(crate) struct TradeLog {
     pub(crate) event: TradeEvent,
 }
 
+/// An enum representing the kind of trade event that occurred.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum TradeEvent {
     ClearV2,
     TakeOrderV2,
 }
 
+/// Fetch all ClearV2 trades from the given block range.
 pub(crate) async fn fetch_clearv2_trades(
     start_block: u64,
     end_block: u64,
@@ -86,6 +90,7 @@ pub(crate) async fn fetch_clearv2_trades(
     Ok(clearv2_trades)
 }
 
+/// Fetch all TakeOrderV2 trades from the given block range.
 pub(crate) async fn fetch_takeorderv2_trades(
     start_block: u64,
     end_block: u64,

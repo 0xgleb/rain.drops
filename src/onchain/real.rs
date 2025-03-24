@@ -1,3 +1,6 @@
+//! A real implementation of the [`OnChain`] trait that interacts with the
+//! blockchain.
+
 use alloy::eips::BlockNumberOrTag;
 use alloy::network::{AnyHeader, AnyTxEnvelope};
 use alloy::primitives::{BlockNumber, FixedBytes};
@@ -12,11 +15,15 @@ use tracing::*;
 use super::OnChain;
 use crate::{OrderbookContract, TradeLog};
 
+/// A wrapper around the connected orderbook contract that implements the
+/// [`OnChain`] trait.
 pub struct RealChain {
     contract: OrderbookContract,
 }
 
 impl RealChain {
+    /// Create a new [`RealChain`] wrapper around the given orderbook
+    /// contract.
     pub fn new(contract: OrderbookContract) -> Self {
         Self { contract }
     }
@@ -45,6 +52,9 @@ impl OnChain for RealChain {
         start_block: u64,
         end_block: u64,
     ) -> anyhow::Result<BTreeMap<BlockNumber, Vec<TradeLog>>> {
+        debug!(
+            "Fetching ClearV2 trades from blocks {start_block} to {end_block}"
+        );
         crate::logs::fetch_clearv2_trades(
             start_block,
             end_block,
@@ -58,6 +68,9 @@ impl OnChain for RealChain {
         start_block: u64,
         end_block: u64,
     ) -> anyhow::Result<BTreeMap<BlockNumber, Vec<TradeLog>>> {
+        debug!(
+            "Fetching TakeOrderV2 trades from blocks {start_block} to {end_block}"
+        );
         crate::logs::fetch_takeorderv2_trades(
             start_block,
             end_block,
@@ -68,13 +81,14 @@ impl OnChain for RealChain {
 
     async fn fetch_block_bodies(
         &self,
-        block_numbers: impl IntoIterator<Item = BlockNumber>,
+        block_numbers: Vec<BlockNumber>,
     ) -> anyhow::Result<
         BTreeMap<
             BlockNumber,
             Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
         >,
     > {
+        debug!("Fetching block bodies for blocks {block_numbers:?}");
         let mut block_bodies = BTreeMap::new();
 
         for block_number in block_numbers {

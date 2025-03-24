@@ -1,3 +1,6 @@
+//! A CLI tool for fetching and parsing OrderbookV4 event logs from the
+//! blockchain and saving them to a CSV file.
+
 use alloy::network::{AnyNetwork, BlockResponse, TransactionResponse};
 use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use alloy::providers::RootProvider;
@@ -17,18 +20,28 @@ pub mod onchain;
 use logs::{TradeEvent, TradeLog};
 use onchain::OnChain;
 
+/// Type alias for the OrderbookV4 contract instance connected to the
+/// configured JSON-RPC HTTP URL.
 pub type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
     http::Http<http::Client>,
     RootProvider<http::Http<http::Client>, AnyNetwork>,
     AnyNetwork,
 >;
 
+/// Create or append to a CSV file containing all trades from the deployed
+/// OrderbookV4 contract.
 #[allow(private_bounds)]
 pub async fn update_trades_csv(
     env: &env::Env,
     onchain: &impl OnChain,
 ) -> anyhow::Result<()> {
+    let file_exists = std::fs::metadata(&env.csv_path).is_ok();
+    debug!("Does {} exist? {}", env.csv_path, file_exists);
+
     let start_block = get_start_block(env, onchain).await?;
+    info!("Starting trade collection from block {start_block}");
+    let latest_block = onchain.get_block_number().await?;
+    info!("Latest block is {latest_block}");
 
     let csv_file = std::fs::OpenOptions::new()
         .create(true)
@@ -39,9 +52,18 @@ pub async fn update_trades_csv(
     let mut csv_writer =
         csv::WriterBuilder::new().has_headers(false).from_writer(csv_file);
 
-    let latest_block = onchain.get_block_number().await?;
-    info!("Latest block is {latest_block}");
+    if !file_exists {
+        csv_writer.write_record([
+            "timestamp",
+            "tx_origin",
+            "tx_hash",
+            "event",
+        ])?;
+    }
 
+    debug!("Set up CSV writer for {}", env.csv_path);
+
+    info!("Fetching trades from blocks {start_block} to {latest_block}");
     for block_batch_start in
         (start_block..latest_block).step_by(env.blocks_per_log_request as usize)
     {
@@ -59,15 +81,15 @@ pub async fn update_trades_csv(
 }
 
 async fn read_trades_csv(env: &env::Env) -> anyhow::Result<Vec<Trade>> {
-    let mut csv_reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .from_path(&env.csv_path)?;
+    let mut csv_reader =
+        csv::ReaderBuilder::new().has_headers(true).from_path(&env.csv_path)?;
     let saved_trades: Vec<Trade> =
         csv_reader.deserialize().collect::<Result<_, _>>()?;
     info!("Found {} saved trades", saved_trades.len());
     Ok(saved_trades)
 }
 
+/// Determine the starting block for fetching event logs from.
 async fn get_start_block(
     env: &env::Env,
     onchain: &impl OnChain,
@@ -83,7 +105,7 @@ async fn get_start_block(
     }
 
     let latest_trade = latest_trade.unwrap();
-    info!("Latest saved trade: {latest_trade:?}");
+    debug!("Latest saved trade: {latest_trade:?}");
 
     let latest_trade_tx_hash = latest_trade.tx_hash;
     debug!("Fetching transaction with hash {latest_trade_tx_hash}");
@@ -92,7 +114,6 @@ async fn get_start_block(
         .await?
         .unwrap_or(env.orderbookv4_deployment_block);
 
-    info!("Starting from block {start_block}");
     Ok(start_block)
 }
 
@@ -106,13 +127,14 @@ pub struct Trade {
     event: TradeEvent,
 }
 
+/// Collect and store a batch of trade logs from the given block range.
 async fn process_block_batch(
     csv_writer: &mut csv::Writer<std::fs::File>,
     onchain: &impl OnChain,
     start_block: u64,
     end_block: u64,
 ) -> anyhow::Result<()> {
-    debug!("Fetching logs from {start_block} to {end_block}");
+    debug!("Fetching a batch of trade logs from blocks {start_block} to {end_block}");
 
     let mut clearv2_trades =
         onchain.fetch_clearv2_trades(start_block, end_block).await?;
@@ -180,7 +202,7 @@ async fn process_block_batch(
         .collect_vec();
 
     let trade_count = trades.len();
-    info!("Blocks [{start_block}, {end_block}] emitted {trade_count} trade events");
+    info!("Collected {trade_count:>2} trades from blocks [{start_block}, {end_block}]");
 
     #[cfg(debug_assertions)]
     assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);

@@ -1,11 +1,8 @@
-use alloy::eips::BlockNumberOrTag;
-use alloy::network::{AnyHeader, AnyNetwork, AnyTxEnvelope, BlockResponse, TransactionResponse};
+use alloy::network::{AnyNetwork, BlockResponse, TransactionResponse};
 use alloy::primitives::{Address, BlockNumber, FixedBytes};
-use alloy::providers::{Provider, RootProvider};
-use alloy::rpc::types::{Block, BlockTransactions, BlockTransactionsKind, Header, Transaction};
+use alloy::providers::RootProvider;
 use alloy::{sol, transports::http};
 use itertools::Itertools;
-use std::collections::BTreeMap;
 use tracing::*;
 
 sol! {
@@ -13,17 +10,25 @@ sol! {
     IOrderBookV4, "./abi/orderbookv4.json"
 }
 
-mod env;
+pub mod env;
 mod logs;
-mod onchain;
+pub mod onchain;
 
-use logs::TradeEvent;
+use logs::{TradeEvent, TradeLog};
+use onchain::OnChain;
 
+pub type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
+    http::Http<http::Client>,
+    RootProvider<http::Http<http::Client>, AnyNetwork>,
+    AnyNetwork,
+>;
+
+#[allow(private_bounds)]
 pub async fn update_trades_csv(
     env: &env::Env,
-    orderbook: &OrderbookContract,
+    onchain: &impl OnChain,
 ) -> anyhow::Result<()> {
-    let start_block = get_start_block(env, orderbook).await?;
+    let start_block = get_start_block(env, onchain).await?;
 
     let csv_file = std::fs::OpenOptions::new()
         .create(true)
@@ -31,11 +36,10 @@ pub async fn update_trades_csv(
         .open(&env.csv_path)
         .unwrap();
 
-    let mut csv_writer = csv::WriterBuilder::new()
-        .has_headers(false)
-        .from_writer(csv_file);
+    let mut csv_writer =
+        csv::WriterBuilder::new().has_headers(false).from_writer(csv_file);
 
-    let latest_block = orderbook.provider().get_block_number().await?;
+    let latest_block = onchain.get_block_number().await?;
     info!("Latest block is {latest_block}");
 
     for block_batch_start in
@@ -44,7 +48,7 @@ pub async fn update_trades_csv(
         let block_batch_end = block_batch_start + env.blocks_per_log_request;
         process_block_batch(
             &mut csv_writer,
-            orderbook,
+            onchain,
             block_batch_start,
             block_batch_end,
         )
@@ -54,21 +58,26 @@ pub async fn update_trades_csv(
     Ok(())
 }
 
+async fn read_trades_csv(env: &env::Env) -> anyhow::Result<Vec<Trade>> {
+    let mut csv_reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(&env.csv_path)?;
+    let saved_trades: Vec<Trade> =
+        csv_reader.deserialize().collect::<Result<_, _>>()?;
+    info!("Found {} saved trades", saved_trades.len());
+    Ok(saved_trades)
+}
+
 async fn get_start_block(
     env: &env::Env,
-    orderbook: &OrderbookContract,
+    onchain: &impl OnChain,
 ) -> anyhow::Result<BlockNumber> {
     if std::fs::metadata(&env.csv_path).is_err() {
         return Ok(env.orderbookv4_deployment_block);
     }
 
-    let mut csv_reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .from_path(&env.csv_path)?;
-    let saved_trades: Vec<Trade> = csv_reader.deserialize().collect::<Result<_, _>>()?;
-    info!("Found {} saved trades", saved_trades.len());
+    let saved_trades = read_trades_csv(env).await?;
     let latest_trade = saved_trades.last();
-
     if latest_trade.is_none() {
         return Ok(env.orderbookv4_deployment_block);
     }
@@ -78,14 +87,9 @@ async fn get_start_block(
 
     let latest_trade_tx_hash = latest_trade.tx_hash;
     debug!("Fetching transaction with hash {latest_trade_tx_hash}");
-    let tx = orderbook
-        .provider()
-        .get_transaction_by_hash(latest_trade_tx_hash)
-        .await?;
-
-    let start_block = tx
-        .and_then(|tx| tx.block_number)
-        .map(|block_num| block_num + 1)
+    let start_block = onchain
+        .get_block_number_by_tx_hash(latest_trade_tx_hash)
+        .await?
         .unwrap_or(env.orderbookv4_deployment_block);
 
     info!("Starting from block {start_block}");
@@ -102,27 +106,23 @@ pub struct Trade {
     event: TradeEvent,
 }
 
-type OrderbookContract = IOrderBookV4::IOrderBookV4Instance<
-    http::Http<http::Client>,
-    RootProvider<http::Http<http::Client>, AnyNetwork>,
-    AnyNetwork,
->;
-
 async fn process_block_batch(
     csv_writer: &mut csv::Writer<std::fs::File>,
-    orderbook: &OrderbookContract,
+    onchain: &impl OnChain,
     start_block: u64,
     end_block: u64,
 ) -> anyhow::Result<()> {
     debug!("Fetching logs from {start_block} to {end_block}");
 
-    let mut clearv2_trades = logs::fetch_clearv2_trades(start_block, end_block, orderbook).await?;
+    let mut clearv2_trades =
+        onchain.fetch_clearv2_trades(start_block, end_block).await?;
 
-    let clearv2_trades_count: usize = clearv2_trades.values().map(|trades| trades.len()).sum();
+    let clearv2_trades_count: usize =
+        clearv2_trades.values().map(|trades| trades.len()).sum();
     debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
 
     let mut takeorderv2_trades =
-        logs::fetch_takeorderv2_trades(start_block, end_block, orderbook).await?;
+        onchain.fetch_takeorderv2_trades(start_block, end_block).await?;
 
     let takeorderv2_trades_count: usize =
         takeorderv2_trades.values().map(|trades| trades.len()).sum();
@@ -137,13 +137,16 @@ async fn process_block_batch(
         .sorted()
         .collect_vec();
 
-    let mut block_bodies = fetch_block_bodies(orderbook, blocks_with_trades.clone()).await?;
+    let mut block_bodies =
+        onchain.fetch_block_bodies(blocks_with_trades.clone()).await?;
 
     let trades = blocks_with_trades
         .into_iter()
         .flat_map(|block_number| {
-            let clearv2_trade = clearv2_trades.remove(&block_number).unwrap_or_default();
-            let takeorderv2_trade = takeorderv2_trades.remove(&block_number).unwrap_or_default();
+            let clearv2_trade =
+                clearv2_trades.remove(&block_number).unwrap_or_default();
+            let takeorderv2_trade =
+                takeorderv2_trades.remove(&block_number).unwrap_or_default();
 
             clearv2_trade
                 .into_iter()
@@ -176,9 +179,6 @@ async fn process_block_batch(
         })
         .collect_vec();
 
-    // Block range to test event ordering:
-    // Blocks 295976000 through 296076000 emitted 01 ClearV2 and 35 TakeOrderV2 events
-
     let trade_count = trades.len();
     info!("Blocks [{start_block}, {end_block}] emitted {trade_count} trade events");
 
@@ -193,50 +193,70 @@ async fn process_block_batch(
     Ok(())
 }
 
-async fn fetch_block_bodies(
-    orderbook: &OrderbookContract,
-    block_numbers: impl IntoIterator<Item = BlockNumber>,
-) -> anyhow::Result<BTreeMap<BlockNumber, Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>>> {
-    let mut block_bodies = BTreeMap::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    for block_number in block_numbers {
-        trace!("Fetching block #{block_number}");
-        let block = orderbook
-            .provider()
-            .get_block_by_number(
-                BlockNumberOrTag::Number(block_number),
-                BlockTransactionsKind::Full,
-            )
-            .await?;
+    use env::Env;
+    use onchain::mock::MockChain;
 
-        match block {
-            None => {
-                error!("Get block with number {block_number} returned None");
-                continue;
-            }
-            Some(block) => {
-                let Block {
-                    header,
-                    uncles,
-                    transactions,
-                    withdrawals,
-                } = block.inner;
-                let transactions = transactions
-                    .into_transactions()
-                    .map(|tx| tx.inner)
-                    .collect_vec();
-                let transactions = BlockTransactions::Full(transactions);
-                let block = Block {
-                    header,
-                    uncles,
-                    transactions,
-                    withdrawals,
-                };
+    #[tokio::test]
+    async fn test_get_start_block() -> anyhow::Result<()> {
+        let mut env = Env::init();
+        env.csv_path = "test_trades.csv".to_string();
+        env.json_rpc_http_url =
+            std::env::var("ARBITRUM_JSON_RPC_HTTP_URL").unwrap();
 
-                block_bodies.insert(block_number, block);
-            }
+        // fake deployment block to speed up the test
+        env.orderbookv4_deployment_block = 267_500_000;
+
+        let current_block: BlockNumber = 267_750_000;
+        let orderbook = env.connect_contract()?;
+        let mut onchain = MockChain::new(current_block, orderbook);
+
+        if std::fs::metadata(&env.csv_path).is_ok() {
+            std::fs::remove_file(&env.csv_path)?;
         }
-    }
 
-    Ok(block_bodies)
+        update_trades_csv(&env, &onchain).await?;
+        assert!(std::fs::metadata(&env.csv_path).is_ok());
+
+        let saved_trades = read_trades_csv(&env).await?;
+        assert_eq!(saved_trades.len(), 17);
+
+        let clearv2_trade_count = saved_trades
+            .iter()
+            .filter(|trade| trade.event == TradeEvent::ClearV2)
+            .count();
+        assert_eq!(clearv2_trade_count, 1);
+
+        let takeorderv2_trade_count = saved_trades
+            .iter()
+            .filter(|trade| trade.event == TradeEvent::TakeOrderV2)
+            .count();
+        assert_eq!(takeorderv2_trade_count, 16);
+
+        let current_block: BlockNumber = 268_000_000;
+        onchain.set_current_block(current_block);
+        update_trades_csv(&env, &onchain).await?;
+
+        let saved_trades = read_trades_csv(&env).await?;
+        assert_eq!(saved_trades.len(), 32);
+
+        let clearv2_trade_count = saved_trades
+            .iter()
+            .filter(|trade| trade.event == TradeEvent::ClearV2)
+            .count();
+        assert_eq!(clearv2_trade_count, 1);
+
+        let takeorderv2_trade_count = saved_trades
+            .iter()
+            .filter(|trade| trade.event == TradeEvent::TakeOrderV2)
+            .count();
+        assert_eq!(takeorderv2_trade_count, 31);
+
+        std::fs::remove_file(&env.csv_path)?;
+
+        Ok(())
+    }
 }

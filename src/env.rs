@@ -8,24 +8,25 @@ use crate::{IOrderBookV4, OrderbookContract};
 #[derive(Debug, Parser)]
 pub struct Env {
     #[clap(long, env, default_value = "DEBUG")]
-    log_level: tracing::Level,
+    pub log_level: tracing::Level,
     #[clap(long, env, default_value = "trades.csv")]
-    pub(crate) csv_path: String,
+    pub csv_path: String,
     #[clap(long, env)]
-    json_rpc_http_url: String,
+    pub json_rpc_http_url: String,
     #[clap(long, env)]
-    orderbookv4_deployment_address: String,
+    pub orderbookv4_deployment_address: String,
     #[clap(long, env)]
-    pub(crate) orderbookv4_deployment_block: u64,
+    pub orderbookv4_deployment_block: u64,
     #[clap(long, env, default_value = "100000")]
-    pub(crate) blocks_per_log_request: u64,
+    pub blocks_per_log_request: u64,
 }
 
 impl Env {
     pub fn init() -> Self {
         dotenv::dotenv().ok();
         let env = Env::parse();
-        let env_filter = format!("none,rain_drops={log_level}", log_level = &env.log_level);
+        let env_filter =
+            format!("none,rain_drops={log_level}", log_level = &env.log_level);
 
         tracing_subscriber::fmt()
             .with_max_level(env.log_level)
@@ -37,11 +38,11 @@ impl Env {
 
     pub fn connect_contract(&self) -> anyhow::Result<OrderbookContract> {
         let rpc_url = self.json_rpc_http_url.parse()?;
-        let provider = ProviderBuilder::new()
-            .network::<AnyNetwork>()
-            .on_http(rpc_url);
+        let provider =
+            ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
 
-        let orderbook = self.orderbookv4_deployment_address.parse::<Address>()?;
+        let orderbook =
+            self.orderbookv4_deployment_address.parse::<Address>()?;
         let orderbook = IOrderBookV4::new(orderbook, provider.clone());
 
         Ok(orderbook)

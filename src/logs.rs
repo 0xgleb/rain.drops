@@ -17,7 +17,7 @@ pub(crate) struct TradeLog {
     pub(crate) event: TradeEvent,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum TradeEvent {
     ClearV2,
     TakeOrderV2,

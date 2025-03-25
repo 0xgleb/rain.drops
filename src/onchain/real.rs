@@ -81,14 +81,14 @@ impl OnChain for RealChain {
 
     async fn fetch_block_bodies(
         &self,
-        block_numbers: Vec<BlockNumber>,
+        block_numbers: impl IntoIterator<Item = BlockNumber>,
     ) -> anyhow::Result<
         BTreeMap<
             BlockNumber,
             Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
         >,
     > {
-        debug!("Fetching block bodies for blocks {block_numbers:?}");
+        debug!("Fetching block bodies...");
         let mut block_bodies = BTreeMap::new();
 
         for block_number in block_numbers {

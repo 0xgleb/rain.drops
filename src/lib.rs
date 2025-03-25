@@ -1,11 +1,15 @@
 //! A CLI tool for fetching and parsing OrderbookV4 event logs from the
 //! blockchain and saving them to a CSV file.
 
-use alloy::network::{AnyNetwork, BlockResponse, TransactionResponse};
+use alloy::network::{
+    AnyHeader, AnyNetwork, AnyTxEnvelope, BlockResponse, TransactionResponse,
+};
 use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use alloy::providers::RootProvider;
+use alloy::rpc::types::{Block, Header, Transaction};
 use alloy::{sol, transports::http};
 use itertools::Itertools;
+use std::collections::BTreeMap;
 use tracing::*;
 
 sol! {
@@ -136,22 +140,43 @@ async fn process_block_batch(
 ) -> anyhow::Result<()> {
     debug!("Fetching a batch of trade logs from blocks {start_block} to {end_block}");
 
-    let mut clearv2_trades =
+    let clearv2_trades =
         onchain.fetch_clearv2_trades(start_block, end_block).await?;
 
-    let clearv2_trades_count: usize =
-        clearv2_trades.values().map(|trades| trades.len()).sum();
-    debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
-
-    let mut takeorderv2_trades =
+    let takeorderv2_trades =
         onchain.fetch_takeorderv2_trades(start_block, end_block).await?;
 
-    let takeorderv2_trades_count: usize =
-        takeorderv2_trades.values().map(|trades| trades.len()).sum();
-    debug!(
-        "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count} TakeOrderV2 events"
+    let block_bodies = onchain
+        .fetch_block_bodies(
+            clearv2_trades
+                .keys()
+                .copied()
+                .chain(takeorderv2_trades.keys().copied()),
+        )
+        .await?;
+
+    let trades = merge_and_enrich_partial_trades(
+        clearv2_trades,
+        takeorderv2_trades,
+        block_bodies,
     );
 
+    for trade in trades {
+        csv_writer.serialize(trade)?;
+    }
+    csv_writer.flush()?;
+
+    Ok(())
+}
+
+fn merge_and_enrich_partial_trades(
+    mut clearv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
+    mut takeorderv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
+    mut block_bodies: BTreeMap<
+        BlockNumber,
+        Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
+    >,
+) -> Vec<Trade> {
     let blocks_with_trades = clearv2_trades
         .keys()
         .copied()
@@ -159,8 +184,22 @@ async fn process_block_batch(
         .sorted()
         .collect_vec();
 
-    let mut block_bodies =
-        onchain.fetch_block_bodies(blocks_with_trades.clone()).await?;
+    if blocks_with_trades.is_empty() {
+        return vec![];
+    }
+
+    let start_block = blocks_with_trades[0];
+    let end_block = blocks_with_trades[blocks_with_trades.len() - 1];
+
+    let clearv2_trades_count: usize =
+        clearv2_trades.values().map(|trades| trades.len()).sum();
+    debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
+
+    let takeorderv2_trades_count: usize =
+        takeorderv2_trades.values().map(|trades| trades.len()).sum();
+    debug!(
+        "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count} TakeOrderV2 events"
+    );
 
     let trades = blocks_with_trades
         .into_iter()
@@ -207,12 +246,7 @@ async fn process_block_batch(
     #[cfg(debug_assertions)]
     assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);
 
-    for trade in trades {
-        csv_writer.serialize(trade)?;
-    }
-    csv_writer.flush()?;
-
-    Ok(())
+    trades
 }
 
 #[cfg(test)]

@@ -41,7 +41,7 @@ pub(crate) trait OnChain {
     /// Fetch block bodies for a sequence of block numbers.
     async fn fetch_block_bodies(
         &self,
-        block_numbers: Vec<BlockNumber>,
+        block_numbers: impl IntoIterator<Item = BlockNumber>,
     ) -> anyhow::Result<
         BTreeMap<
             BlockNumber,

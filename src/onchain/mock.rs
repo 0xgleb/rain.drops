@@ -1,13 +1,11 @@
 //! A mock implementation of the [`OnChain`] trait that allows for
 //! deterministic testing by mocking the current block number.
 
-use alloy::network::{AnyHeader, AnyTxEnvelope};
 use alloy::primitives::{BlockNumber, FixedBytes};
-use alloy::rpc::types::{Block, Header, Transaction};
 use std::collections::BTreeMap;
 
 use super::real::RealChain;
-use super::OnChain;
+use super::{BlockMetadata, OnChain};
 use crate::logs::TradeLog;
 use crate::OrderbookContract;
 
@@ -65,12 +63,7 @@ impl OnChain for MockChain {
     async fn fetch_block_bodies(
         &self,
         block_numbers: impl IntoIterator<Item = BlockNumber>,
-    ) -> anyhow::Result<
-        BTreeMap<
-            BlockNumber,
-            Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
-        >,
-    > {
+    ) -> anyhow::Result<BTreeMap<BlockNumber, BlockMetadata>> {
         self.real_chain.fetch_block_bodies(block_numbers).await
     }
 }

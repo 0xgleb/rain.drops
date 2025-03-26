@@ -1,15 +1,10 @@
 //! A CLI tool for fetching and parsing OrderbookV4 event logs from the
 //! blockchain and saving them to a CSV file.
 
-use alloy::network::{
-    AnyHeader, AnyNetwork, AnyTxEnvelope, BlockResponse, TransactionResponse,
-};
+use alloy::network::AnyNetwork;
 use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use alloy::providers::RootProvider;
-use alloy::rpc::types::{Block, Header, Transaction};
 use alloy::{sol, transports::http};
-use itertools::Itertools;
-use std::collections::BTreeMap;
 use tracing::*;
 
 sol! {
@@ -17,6 +12,7 @@ sol! {
     IOrderBookV4, "./abi/orderbookv4.json"
 }
 
+mod compose;
 pub mod env;
 mod logs;
 pub mod onchain;
@@ -55,6 +51,7 @@ pub async fn update_trades_csv(
 
     let mut csv_writer =
         csv::WriterBuilder::new().has_headers(false).from_writer(csv_file);
+    debug!("Set up CSV writer for {}", env.csv_path);
 
     if !file_exists {
         csv_writer.write_record([
@@ -63,9 +60,8 @@ pub async fn update_trades_csv(
             "tx_hash",
             "event",
         ])?;
+        debug!("Wrote headers to {}", env.csv_path);
     }
-
-    debug!("Set up CSV writer for {}", env.csv_path);
 
     info!("Fetching trades from blocks {start_block} to {latest_block}");
     for block_batch_start in
@@ -155,7 +151,7 @@ async fn process_block_batch(
         )
         .await?;
 
-    let trades = merge_and_enrich_partial_trades(
+    let trades = compose::enrich_and_merge(
         clearv2_trades,
         takeorderv2_trades,
         block_bodies,
@@ -167,86 +163,6 @@ async fn process_block_batch(
     csv_writer.flush()?;
 
     Ok(())
-}
-
-fn merge_and_enrich_partial_trades(
-    mut clearv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
-    mut takeorderv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
-    mut block_bodies: BTreeMap<
-        BlockNumber,
-        Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
-    >,
-) -> Vec<Trade> {
-    let blocks_with_trades = clearv2_trades
-        .keys()
-        .copied()
-        .chain(takeorderv2_trades.keys().copied())
-        .sorted()
-        .collect_vec();
-
-    if blocks_with_trades.is_empty() {
-        return vec![];
-    }
-
-    let start_block = blocks_with_trades[0];
-    let end_block = blocks_with_trades[blocks_with_trades.len() - 1];
-
-    let clearv2_trades_count: usize =
-        clearv2_trades.values().map(|trades| trades.len()).sum();
-    debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
-
-    let takeorderv2_trades_count: usize =
-        takeorderv2_trades.values().map(|trades| trades.len()).sum();
-    debug!(
-        "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count} TakeOrderV2 events"
-    );
-
-    let trades = blocks_with_trades
-        .into_iter()
-        .flat_map(|block_number| {
-            let clearv2_trade =
-                clearv2_trades.remove(&block_number).unwrap_or_default();
-            let takeorderv2_trade =
-                takeorderv2_trades.remove(&block_number).unwrap_or_default();
-
-            clearv2_trade
-                .into_iter()
-                .chain(takeorderv2_trade.into_iter())
-                .sorted_by_key(|trade| trade.log_index)
-        })
-        .map(|trade| {
-            let block = block_bodies.remove(&trade.block_number).unwrap();
-
-            let timestamp = block.header.timestamp;
-            let tx_origin = block
-                .transactions()
-                .clone()
-                .into_transactions()
-                .find_map(|tx| {
-                    if tx.tx_hash() == trade.tx_hash {
-                        Some(tx.from)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap();
-
-            Trade {
-                timestamp,
-                tx_origin,
-                event: trade.event,
-                tx_hash: trade.tx_hash,
-            }
-        })
-        .collect_vec();
-
-    let trade_count = trades.len();
-    info!("Collected {trade_count:>2} trades from blocks [{start_block}, {end_block}]");
-
-    #[cfg(debug_assertions)]
-    assert_eq!(trade_count, clearv2_trades_count + takeorderv2_trades_count);
-
-    trades
 }
 
 #[cfg(test)]

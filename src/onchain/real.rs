@@ -2,17 +2,16 @@
 //! blockchain.
 
 use alloy::eips::BlockNumberOrTag;
-use alloy::network::{AnyHeader, AnyTxEnvelope};
+use alloy::network::TransactionResponse;
 use alloy::primitives::{BlockNumber, FixedBytes};
 use alloy::providers::Provider;
-use alloy::rpc::types::{
-    Block, BlockTransactions, BlockTransactionsKind, Header, Transaction,
-};
+use alloy::rpc::types::{Block, BlockTransactionsKind};
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use tracing::*;
 
 use super::OnChain;
+use crate::onchain::{BlockMetadata, TxMetadata};
 use crate::{OrderbookContract, TradeLog};
 
 /// A wrapper around the connected orderbook contract that implements the
@@ -82,12 +81,7 @@ impl OnChain for RealChain {
     async fn fetch_block_bodies(
         &self,
         block_numbers: impl IntoIterator<Item = BlockNumber>,
-    ) -> anyhow::Result<
-        BTreeMap<
-            BlockNumber,
-            Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
-        >,
-    > {
+    ) -> anyhow::Result<BTreeMap<BlockNumber, BlockMetadata>> {
         debug!("Fetching block bodies...");
         let mut block_bodies = BTreeMap::new();
 
@@ -110,15 +104,18 @@ impl OnChain for RealChain {
                     continue;
                 }
                 Some(block) => {
-                    let Block { header, uncles, transactions, withdrawals } =
-                        block.inner;
-                    let transactions = transactions
-                        .into_transactions()
-                        .map(|tx| tx.inner)
-                        .collect_vec();
-                    let transactions = BlockTransactions::Full(transactions);
-                    let block =
-                        Block { header, uncles, transactions, withdrawals };
+                    let Block { header, transactions, .. } = block.inner;
+
+                    let block = BlockMetadata {
+                        timestamp: header.timestamp,
+                        transactions: transactions
+                            .into_transactions()
+                            .map(|tx| TxMetadata {
+                                hash: tx.tx_hash(),
+                                origin: tx.from,
+                            })
+                            .collect_vec(),
+                    };
 
                     block_bodies.insert(block_number, block);
                 }

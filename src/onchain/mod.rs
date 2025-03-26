@@ -1,9 +1,7 @@
 //! A layer of abstraction for controlling interactions with the blockchain
 //! depending on whether we are running in a test environment or not.
 
-use alloy::network::{AnyHeader, AnyTxEnvelope};
-use alloy::primitives::{BlockNumber, FixedBytes};
-use alloy::rpc::types::{Block, Header, Transaction};
+use alloy::primitives::{Address, BlockNumber, FixedBytes};
 use std::collections::BTreeMap;
 
 use crate::logs::TradeLog;
@@ -11,6 +9,18 @@ use crate::logs::TradeLog;
 #[cfg(test)]
 pub mod mock;
 pub mod real;
+
+#[derive(Debug, Clone)]
+pub(crate) struct TxMetadata {
+    pub origin: Address,
+    pub hash: FixedBytes<32>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct BlockMetadata {
+    pub timestamp: u64,
+    pub transactions: Vec<TxMetadata>,
+}
 
 /// A trait for interacting with the blockchain and deployed orderbook contract.
 pub(crate) trait OnChain {
@@ -42,10 +52,5 @@ pub(crate) trait OnChain {
     async fn fetch_block_bodies(
         &self,
         block_numbers: impl IntoIterator<Item = BlockNumber>,
-    ) -> anyhow::Result<
-        BTreeMap<
-            BlockNumber,
-            Block<Transaction<AnyTxEnvelope>, Header<AnyHeader>>,
-        >,
-    >;
+    ) -> anyhow::Result<BTreeMap<BlockNumber, BlockMetadata>>;
 }

@@ -98,9 +98,49 @@ mod tests {
         fn test_enrich_and_merge(
             (clearv2_trades, takeorderv2_trades, block_bodies) in arb_enrich_and_merge_args()
         ) {
-            println!("clearv2_trades: {:?}", clearv2_trades);
-            println!("takeorderv2_trades: {:?}", takeorderv2_trades);
-            println!("block_bodies: {:?}", block_bodies);
+            // Count trades and blocks
+            let clearv2_count = clearv2_trades.values().map(|trades| trades.len()).sum::<usize>();
+            let takeorderv2_count = takeorderv2_trades.values().map(|trades| trades.len()).sum::<usize>();
+            let total_count = clearv2_count + takeorderv2_count;
+
+            let blocks_with_clearv2 = clearv2_trades.keys().copied().collect::<Vec<_>>();
+            let blocks_with_takeorderv2 = takeorderv2_trades.keys().copied().collect::<Vec<_>>();
+            let unique_blocks = blocks_with_clearv2.iter()
+                .chain(blocks_with_takeorderv2.iter())
+                .copied()
+                .collect::<std::collections::HashSet<_>>();
+
+            println!("\nTest Data Summary:");
+            println!("  Blocks with ClearV2 trades: {:?}", blocks_with_clearv2);
+            println!("  Blocks with TakeOrderV2 trades: {:?}", blocks_with_takeorderv2);
+            println!("  Total unique blocks: {}", unique_blocks.len());
+            println!("  ClearV2 trades: {}", clearv2_count);
+            println!("  TakeOrderV2 trades: {}", takeorderv2_count);
+            println!("  Total trades: {}", total_count);
+            println!("  Block metadata available for blocks: {:?}", block_bodies.keys().copied().collect::<Vec<_>>());
+
+            // Verify block metadata exists for all blocks with trades
+            for &block in unique_blocks.iter() {
+                assert!(block_bodies.contains_key(&block),
+                    "Missing block metadata for block {}", block);
+            }
+
+            let trades = enrich_and_merge(clearv2_trades, takeorderv2_trades, block_bodies);
+
+            println!("\nEnriched Trades:");
+            for trade in &trades {
+                println!("  {} trade with tx_hash {} from {}",
+                    match trade.event {
+                        TradeEvent::ClearV2 => "ClearV2",
+                        TradeEvent::TakeOrderV2 => "TakeOrderV2",
+                    },
+                    trade.tx_hash,
+                    trade.tx_origin);
+            }
+
+            // Verify trade counts match
+            assert_eq!(trades.len(), total_count,
+                "Expected {} trades but got {}", total_count, trades.len());
         }
     }
 
@@ -113,21 +153,11 @@ mod tests {
     > {
         arb_trade_logs_and_hashes().prop_flat_map(
             |(clearv2_trades, takeorderv2_trades, block_num_to_tx_hashes)| {
-                // Create a strategy for the block metadata map
-                let block_numbers: Vec<BlockNumber> =
-                    block_num_to_tx_hashes.keys().copied().collect();
-                let block_metadata_strategy = prop::collection::btree_map(
-                    Just(block_numbers),
-                    arb_block_metadata(
-                        block_num_to_tx_hashes.values().next().unwrap().clone(),
-                    ),
-                    1..=block_num_to_tx_hashes.len(),
-                )
-                .prop_map(|map| {
-                    map.into_iter()
-                        .map(|(k, v)| (k[0], v))
-                        .collect::<BTreeMap<_, _>>()
-                });
+                // // Generate block metadata for each block number
+                // let block_numbers: Vec<BlockNumber> =
+                //     block_num_to_tx_hashes.keys().copied().collect();
+                let block_metadata_strategy =
+                    arb_blocks(block_num_to_tx_hashes);
 
                 // Combine the trade logs with the block metadata
                 (
@@ -142,6 +172,22 @@ mod tests {
                     )
             },
         )
+    }
+
+    fn arb_blocks(
+        block_num_to_tx_hashes: BTreeMap<BlockNumber, Vec<TxHash>>,
+    ) -> impl Strategy<Value = BTreeMap<BlockNumber, BlockMetadata>> {
+        // Create a tuple strategy for each block number and its metadata
+        let block_strategies: Vec<_> = block_num_to_tx_hashes
+            .into_iter()
+            .map(|(block_number, tx_hashes)| {
+                (Just(block_number), arb_block_metadata(tx_hashes))
+            })
+            .collect();
+
+        // Combine all block strategies into a single strategy using prop_oneof
+        prop_oneof![block_strategies]
+            .prop_map(|blocks| blocks.into_iter().collect())
     }
 
     prop_compose! {

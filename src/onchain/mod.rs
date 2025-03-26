@@ -10,16 +10,20 @@ use crate::logs::TradeLog;
 pub mod mock;
 pub mod real;
 
-#[derive(Debug, Clone)]
-pub(crate) struct TxMetadata {
-    pub origin: Address,
-    pub hash: FixedBytes<32>,
-}
-
+/// Simplified block representation that only includes metadata relevant to us.
+/// This helps with auto-generating test data.
 #[derive(Debug, Clone)]
 pub(crate) struct BlockMetadata {
     pub timestamp: u64,
     pub transactions: Vec<TxMetadata>,
+}
+
+/// Simplified transaction representation that only includes relevant metadata.
+/// This helps with auto-generating test data.
+#[derive(Debug, Clone)]
+pub(crate) struct TxMetadata {
+    pub origin: Address,
+    pub hash: FixedBytes<32>,
 }
 
 /// A trait for interacting with the blockchain and deployed orderbook contract.

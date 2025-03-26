@@ -20,7 +20,7 @@ pub(crate) struct TradeLog {
 }
 
 /// An enum representing the kind of trade event that occurred.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum TradeEvent {
     ClearV2,
     TakeOrderV2,

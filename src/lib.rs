@@ -119,7 +119,7 @@ async fn get_start_block(
 
 /// A trade with all required fields that combines partial trades
 /// enriched with block data.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Trade {
     timestamp: u64,
     tx_origin: Address,

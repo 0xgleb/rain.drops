@@ -1,3 +1,6 @@
+//! Purely-functional composition of trade logs into a single vector of trades.
+//! Isolated into a single module for easier testing.
+
 use alloy::primitives::BlockNumber;
 use itertools::Itertools;
 use std::collections::BTreeMap;
@@ -7,15 +10,16 @@ use crate::logs::TradeLog;
 use crate::onchain::BlockMetadata;
 use crate::Trade;
 
+/// Enrich trade logs with block metadata and merge them into a single vector of trades.
 pub(crate) fn enrich_and_merge(
-    mut clearv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
-    mut takeorderv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
+    mut these_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
+    mut other_trades: BTreeMap<BlockNumber, Vec<TradeLog>>,
     block_bodies: BTreeMap<BlockNumber, BlockMetadata>,
 ) -> Vec<Trade> {
-    let blocks_with_trades = clearv2_trades
+    let blocks_with_trades = these_trades
         .keys()
         .copied()
-        .chain(takeorderv2_trades.keys().copied())
+        .chain(other_trades.keys().copied())
         .sorted()
         .collect_vec();
 
@@ -27,11 +31,11 @@ pub(crate) fn enrich_and_merge(
     let end_block = blocks_with_trades[blocks_with_trades.len() - 1];
 
     let clearv2_trades_count: usize =
-        clearv2_trades.values().map(|trades| trades.len()).sum();
+        these_trades.values().map(|trades| trades.len()).sum();
     debug!("Blocks [{start_block}, {end_block}] emitted {clearv2_trades_count} ClearV2 events");
 
     let takeorderv2_trades_count: usize =
-        takeorderv2_trades.values().map(|trades| trades.len()).sum();
+        other_trades.values().map(|trades| trades.len()).sum();
     debug!(
         "Blocks [{start_block}, {end_block}] emitted {takeorderv2_trades_count} TakeOrderV2 events"
     );
@@ -40,9 +44,9 @@ pub(crate) fn enrich_and_merge(
         .into_iter()
         .flat_map(|block_number| {
             let clearv2_trade =
-                clearv2_trades.remove(&block_number).unwrap_or_default();
+                these_trades.remove(&block_number).unwrap_or_default();
             let takeorderv2_trade =
-                takeorderv2_trades.remove(&block_number).unwrap_or_default();
+                other_trades.remove(&block_number).unwrap_or_default();
 
             clearv2_trade
                 .into_iter()
@@ -84,6 +88,8 @@ pub(crate) fn enrich_and_merge(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use alloy::{
         hex::FromHex,
         primitives::{Address, FixedBytes, TxHash},
@@ -93,54 +99,81 @@ mod tests {
     use super::*;
     use crate::{onchain::TxMetadata, TradeEvent};
 
+    const DEBUG_TEST: bool = false;
+
     proptest! {
         #[test]
         fn test_enrich_and_merge(
             (clearv2_trades, takeorderv2_trades, block_bodies) in arb_enrich_and_merge_args()
         ) {
-            // Count trades and blocks
-            let clearv2_count = clearv2_trades.values().map(|trades| trades.len()).sum::<usize>();
-            let takeorderv2_count = takeorderv2_trades.values().map(|trades| trades.len()).sum::<usize>();
+            let clearv2_count =
+                clearv2_trades.values().map(|trades| trades.len()).sum::<usize>();
+            let takeorderv2_count = takeorderv2_trades
+                .values()
+                .map(|trades| trades.len())
+                .sum::<usize>();
             let total_count = clearv2_count + takeorderv2_count;
 
-            let blocks_with_clearv2 = clearv2_trades.keys().copied().collect::<Vec<_>>();
-            let blocks_with_takeorderv2 = takeorderv2_trades.keys().copied().collect::<Vec<_>>();
-            let unique_blocks = blocks_with_clearv2.iter()
-                .chain(blocks_with_takeorderv2.iter())
-                .copied()
-                .collect::<std::collections::HashSet<_>>();
+            let trades = enrich_and_merge(
+                clearv2_trades.clone(),
+                takeorderv2_trades.clone(),
+                block_bodies.clone(),
+            );
+            prop_assert_eq!(
+                trades.len(),
+                total_count,
+                "Expected {} trades but got {}",
+                total_count,
+                trades.len()
+            );
 
-            println!("\nTest Data Summary:");
-            println!("  Blocks with ClearV2 trades: {:?}", blocks_with_clearv2);
-            println!("  Blocks with TakeOrderV2 trades: {:?}", blocks_with_takeorderv2);
-            println!("  Total unique blocks: {}", unique_blocks.len());
-            println!("  ClearV2 trades: {}", clearv2_count);
-            println!("  TakeOrderV2 trades: {}", takeorderv2_count);
-            println!("  Total trades: {}", total_count);
-            println!("  Block metadata available for blocks: {:?}", block_bodies.keys().copied().collect::<Vec<_>>());
+            let flipped_trades = enrich_and_merge(
+                takeorderv2_trades.clone(),
+                clearv2_trades.clone(),
+                block_bodies.clone(),
+            );
+            prop_assert_eq!(
+                flipped_trades.len(),
+                total_count,
+                "Expected {} trades but got {}",
+                total_count,
+                flipped_trades.len()
+            );
 
-            // Verify block metadata exists for all blocks with trades
-            for &block in unique_blocks.iter() {
-                assert!(block_bodies.contains_key(&block),
-                    "Missing block metadata for block {}", block);
+            prop_assert_eq!(
+                trades,
+                flipped_trades,
+                "Expected output trades to be the same"
+            );
+
+            if DEBUG_TEST {
+                let unique_blocks = clearv2_trades
+                    .keys()
+                    .chain(takeorderv2_trades.keys())
+                    .copied()
+                    .collect::<BTreeSet<_>>();
+
+                let tx_count = block_bodies
+                    .values()
+                    .flat_map(|block| block.transactions.iter())
+                    .count();
+
+                // Verify block metadata exists for all blocks with trades
+                for &block in unique_blocks.iter() {
+                    prop_assert!(
+                        block_bodies.contains_key(&block),
+                        "Missing block metadata for block {}",
+                        block
+                    );
+                }
+
+                println!("\nTest Data:");
+                println!("  Blocks: {}", unique_blocks.len());
+                println!("  Transactions: {}", tx_count);
+                println!("  ClearV2: {}", clearv2_count);
+                println!("  TakeOrderV2: {}", takeorderv2_count);
+                println!("  Total trades: {}", total_count);
             }
-
-            let trades = enrich_and_merge(clearv2_trades, takeorderv2_trades, block_bodies);
-
-            println!("\nEnriched Trades:");
-            for trade in &trades {
-                println!("  {} trade with tx_hash {} from {}",
-                    match trade.event {
-                        TradeEvent::ClearV2 => "ClearV2",
-                        TradeEvent::TakeOrderV2 => "TakeOrderV2",
-                    },
-                    trade.tx_hash,
-                    trade.tx_origin);
-            }
-
-            // Verify trade counts match
-            assert_eq!(trades.len(), total_count,
-                "Expected {} trades but got {}", total_count, trades.len());
         }
     }
 
@@ -153,13 +186,9 @@ mod tests {
     > {
         arb_trade_logs_and_hashes().prop_flat_map(
             |(clearv2_trades, takeorderv2_trades, block_num_to_tx_hashes)| {
-                // // Generate block metadata for each block number
-                // let block_numbers: Vec<BlockNumber> =
-                //     block_num_to_tx_hashes.keys().copied().collect();
                 let block_metadata_strategy =
                     arb_blocks(block_num_to_tx_hashes);
 
-                // Combine the trade logs with the block metadata
                 (
                     Just(clearv2_trades),
                     Just(takeorderv2_trades),
@@ -177,7 +206,6 @@ mod tests {
     fn arb_blocks(
         block_num_to_tx_hashes: BTreeMap<BlockNumber, Vec<TxHash>>,
     ) -> impl Strategy<Value = BTreeMap<BlockNumber, BlockMetadata>> {
-        // Create a tuple strategy for each block number and its metadata
         let block_strategies: Vec<_> = block_num_to_tx_hashes
             .into_iter()
             .map(|(block_number, tx_hashes)| {
@@ -185,7 +213,6 @@ mod tests {
             })
             .collect();
 
-        // Combine all block strategies into a single strategy using prop_oneof
         prop_oneof![block_strategies]
             .prop_map(|blocks| blocks.into_iter().collect())
     }
@@ -202,13 +229,27 @@ mod tests {
             let mut block_num_to_tx_hashes =
                 BTreeMap::<BlockNumber, Vec<(u64, TxHash)>>::new();
 
-            for log in
-                clearv2_logs.clone().into_iter().chain(takeorderv2_logs.clone())
-            {
+            // First collect all takeorderv2 trades
+            for log in takeorderv2_logs.clone() {
                 block_num_to_tx_hashes
                     .entry(log.block_number)
                     .and_modify(|hashes| hashes.push((log.log_index, log.tx_hash)))
                     .or_insert(vec![(log.log_index, log.tx_hash)]);
+            }
+
+            // Then add clearv2 trades, skipping any that have same block and log index as takeorderv2
+            for log in clearv2_logs.clone() {
+                let is_duplicate = block_num_to_tx_hashes
+                    .get(&log.block_number)
+                    .map(|hashes| hashes.iter().any(|(idx, _)| *idx == log.log_index))
+                    .unwrap_or(false);
+
+                if !is_duplicate {
+                    block_num_to_tx_hashes
+                        .entry(log.block_number)
+                        .and_modify(|hashes| hashes.push((log.log_index, log.tx_hash)))
+                        .or_insert(vec![(log.log_index, log.tx_hash)]);
+                }
             }
 
             let clearv2_trades: BTreeMap<BlockNumber, Vec<TradeLog>> = clearv2_logs
@@ -257,7 +298,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Then generate some arbitrary transactions
-        let arbitrary_txs = prop::collection::vec(arb_tx_metadata(), 0..5);
+        let arbitrary_txs = prop::collection::vec(arb_tx_metadata(), 0..10);
 
         // Combine them using prop_flat_map
         (required_txs, arbitrary_txs).prop_flat_map(|(required, arbitrary)| {
@@ -277,7 +318,7 @@ mod tests {
     prop_compose! {
         fn arb_trade_log(event: TradeEvent)(
             log_index in 0u64..1000,
-            block_number in 0u64..10000,
+            block_number in 0u64..1000,
             tx_hash in arb_tx_hash(),
         ) -> TradeLog {
             TradeLog { log_index, block_number, tx_hash, event: event.clone() }
